@@ -3,11 +3,13 @@
   "build-depends": [
   ],
   "depends": [
+    "AttrX::Mooish"
   ],
   "description": "A raku variant of Cooklang",
   "name": "Cooklang",
   "provides": {
-    "Cooklang": "lib/Cooklang.rakumod"
+    "Cooklang": "lib/Cooklang.rakumod",
+    "RecipeActions": "lib/Cooklang.rakumod"
   },
   "resources": [
   ],

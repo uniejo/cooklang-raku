@@ -4,15 +4,14 @@ Cooklang - Perl Cooklang parser
 
 # SYNOPSIS
 
+    use Cooklang;
+    ...
     my $source = "some Cooklang text";
     my $recipe = Cooklang.new( recipe => $source );
-    my $metadata = $recipe.metadata;
-    my $ingredients = $recipe.ingredients;
-    my $steps = $recipe.steps;
-    my $ast = $recipe.ast;
     ...
     my $file = 'recipe.cook';
     my $recipe = Cooklang.new( recipe_file => $file );
+    ...
     my $metadata = $recipe.metadata;
     my $ingredients = $recipe.ingredients;
     my $steps = $recipe.steps;

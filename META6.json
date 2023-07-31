@@ -1,0 +1,17 @@
+{
+  "auth": "zef:uniejo",
+  "build-depends": [
+  ],
+  "depends": [
+  ],
+  "description": "A raku variant of Cooklang",
+  "name": "Cooklang",
+  "provides": {
+    "Cooklang": "lib/Cooklang.rakumod"
+  },
+  "resources": [
+  ],
+  "test-depends": [
+  ],
+  "version": "0.0.1"
+}

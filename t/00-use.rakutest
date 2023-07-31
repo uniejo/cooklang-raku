@@ -1,0 +1,8 @@
+#!/usr/bin/env raku
+use v6;
+use Test;
+use lib '.';
+
+plan 1;
+
+use-ok "Cooklang";

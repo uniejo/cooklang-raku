@@ -16,6 +16,7 @@ Cooklang - Perl Cooklang parser
     my $ingredients = $recipe.ingredients;
     my $steps = $recipe.steps;
     my $ast = $recipe.ast;
+    my $ast_tree = $recipe.match;
 
 # AVAILABILITY
 

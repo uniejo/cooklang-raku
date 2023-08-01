@@ -257,7 +257,8 @@ If you have zef, you only need one line:
 =end INSTALLATION
 
 =begin COMMUNITY
-- [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
+=item1 [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
+=item1 [Cooklang on modules.raku.org](https://modules.raku.org/dist/Cooklang:zef:zef:uniejo)
 =end COMMUNITY
 
 =begin AUTHOR

@@ -19,11 +19,12 @@ SYNOPSIS
     my $recipe = Cooklang.new( recipe_file => @files );
     # Currently does a simple join of all files, before parsing.
     ...
-    my $metadata = $recipe.metadata;
+    my $metadata    = $recipe.metadata;
     my $ingredients = $recipe.ingredients;
-    my $steps = $recipe.steps;
-    my $ast = $recipe.ast;
-    my $ast_tree = $recipe.match;
+    my $steps       = $recipe.steps;
+    my $comments    = $recipe.comments;
+    my $ast         = $recipe.ast;
+    my $ast_tree    = $recipe.match;
 ```
 
 VERSION
@@ -68,7 +69,9 @@ If you have zef, you only need one line:
 COMMUNITY
 =========
 
-- [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
+  * [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
+
+  * [Cooklang on modules.raku.org](https://modules.raku.org/dist/Cooklang:zef:zef:uniejo)
 
 AUTHOR
 ======

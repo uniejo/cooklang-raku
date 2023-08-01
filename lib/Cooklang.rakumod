@@ -150,7 +150,7 @@ class RecipeActions {
 
 # Read recipe from file (or list of files)
 method trigger-recipe_file ($recipe_file) {
-    $!recipe = $recipe_file ~~ Array ?? $recipe_file.map(*.IO.slurp).join("\n\n") !! $recipe_file.IO.slurp;
+    $!recipe = [$recipe_file]>>.map(*.IO.slurp).join("\n\n");
     $!match = Recipe.parse($!recipe, actions => RecipeActions);
 }
 

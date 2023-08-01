@@ -1,4 +1,4 @@
-unit class Cooklang:ver<1.0.2>:auth<Erik Johansen (uniejo@cpan.org)>;
+unit class Cooklang:ver<1.0.3>:auth<Erik Johansen (uniejo@cpan.org)>;
 use AttrX::Mooish;
 
 has $.recipe_file  is rw  is mooish(:trigger);
@@ -177,3 +177,94 @@ method metadata    { $!match && $!match.made && $!match.made<metadata> // {} }
 method comments    { $!match && $!match.made && $!match.made<comments> // [] }
 
 
+
+=begin pod
+
+=begin NAME
+
+Cooklang - C<Raku> C<Cooklang> parser
+
+=end NAME
+
+=begin SYNOPSIS
+
+=begin code :lang<raku>
+    use Cooklang;
+    ...
+    my $source = "some Cooklang text";
+    my $recipe = Cooklang.new( recipe => $source );
+    ...
+    my $file = 'recipe.cook';
+    my $recipe = Cooklang.new( recipe_file => $file );
+    ...
+    my $metadata = $recipe.metadata;
+    my $ingredients = $recipe.ingredients;
+    my $steps = $recipe.steps;
+    my $ast = $recipe.ast;
+    my $ast_tree = $recipe.match;
+=end code
+
+=end SYNOPSIS
+
+=begin VERSION
+
+    version 1.0.3
+
+=end VERSION
+
+=begin AVAILABILITY
+
+Cooklang is implemented in C<Raku> using grammer and grammar action to parse and build AST tree.
+
+=end AVAILABILITY
+
+=begin DESCRIPTION
+For the C<Cooklang> syntax, see [Cooklang](https://cooklang.org/).
+=end DESCRIPTION
+
+=begin DOCUMENTATION
+Cooklang documentation is available as C<POD6>.
+You can run `raku --doc` from a shell to read the documentation:
+=begin code
+    % raku --doc lib/Cooklang.rakumod
+    % raku --doc=Markdown lib/Cooklang.rakumod     # zef install Pod::To::Markdown
+    % raku --doc=HTML lib/Cooklang.rakumod         # zef install Pod::To::HTML
+=end code
+=end DOCUMENTATION
+
+=begin INSTALLATION
+Installing Cooklang is straightforward.
+
+## Installation with zef from CPAN6
+
+If you have zef, you only need one line:
+
+=begin code
+    % zef install Cooklang
+=end code
+
+## Installation with zef from git repository
+
+=begin code
+    % zef install https://github.com/uniejo/cooklang-raku.git
+=end code
+
+=end INSTALLATION
+
+=begin COMMUNITY
+- [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
+=end COMMUNITY
+
+=begin AUTHOR
+Erik Johansen
+=end AUTHOR
+
+=begin COPYRIGHT
+Erik Johansen 2023 -
+=end COPYRIGHT
+
+=begin LICENSE
+This software is licensed under the same terms as Perl itself.
+=end LICENSE
+
+=end pod

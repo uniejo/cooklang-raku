@@ -1,9 +1,12 @@
-# NAME
+NAME
+====
 
-Cooklang - Perl Cooklang parser
+Cooklang - `Raku` `Cooklang` parser
 
-# SYNOPSIS
+SYNOPSIS
+========
 
+```raku
     use Cooklang;
     ...
     my $source = "some Cooklang text";
@@ -17,30 +20,64 @@ Cooklang - Perl Cooklang parser
     my $steps = $recipe.steps;
     my $ast = $recipe.ast;
     my $ast_tree = $recipe.match;
+```
 
-# AVAILABILITY
+VERSION
+=======
 
-Cooklang is implemented in Raku using grammer and grammar action to parse and build AST tree.
+    version 1.0.3
 
-# DESCRIPTION
+AVAILABILITY
+============
 
-For the Cooklang syntax, see [Cooklang](https://cooklang.org/).
+Cooklang is implemented in `Raku` using grammer and grammar action to parse and build AST tree.
 
-# COMMUNITY
+DESCRIPTION
+===========
+
+For the `Cooklang` syntax, see [Cooklang](https://cooklang.org/).
+
+DOCUMENTATION
+=============
+
+Cooklang documentation is available as `POD6`. You can run `raku --doc` from a shell to read the documentation:
+
+        % raku --doc lib/Cooklang.rakumod
+        % raku --doc=Markdown lib/Cooklang.rakumod     # zef install Pod::To::Markdown
+        % raku --doc=HTML lib/Cooklang.rakumod         # zef install Pod::To::HTML
+
+INSTALLATION
+============
+
+Installing Cooklang is straightforward.
+
+## Installation with zef from CPAN6
+
+If you have zef, you only need one line:
+
+        % zef install Cooklang
+
+## Installation with zef from git repository
+
+        % zef install https://github.com/uniejo/cooklang-raku.git
+
+COMMUNITY
+=========
 
 - [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
 
-# AUTHOR
+AUTHOR
+======
 
 Erik Johansen
 
-# COPYRIGHT
+COPYRIGHT
+=========
 
 Erik Johansen 2023 -
 
-# LICENSE
+LICENSE
+=======
 
 This software is licensed under the same terms as Perl itself.
-
-# SEE ALSO
 

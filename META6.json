@@ -1,6 +1,7 @@
 {
   "auth": "zef:uniejo",
   "build-depends": [
+    "YAMLish"
   ],
   "depends": [
     "AttrX::Mooish"

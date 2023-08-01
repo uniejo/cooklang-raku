@@ -1,4 +1,4 @@
-unit class Cooklang:ver<1.0.4>:auth<zef:uniejo>;
+unit class Cooklang:ver<1.0.5>:auth<zef:uniejo>;
 use AttrX::Mooish;
 
 has $.recipe_file  is rw  is mooish(:trigger);
@@ -212,7 +212,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin VERSION
 
-    version 1.0.4
+    version 1.0.5
 
 =end VERSION
 

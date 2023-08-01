@@ -201,11 +201,12 @@ Cooklang - C<Raku> C<Cooklang> parser
     my $recipe = Cooklang.new( recipe_file => @files );
     # Currently does a simple join of all files, before parsing.
     ...
-    my $metadata = $recipe.metadata;
+    my $metadata    = $recipe.metadata;
     my $ingredients = $recipe.ingredients;
-    my $steps = $recipe.steps;
-    my $ast = $recipe.ast;
-    my $ast_tree = $recipe.match;
+    my $steps       = $recipe.steps;
+    my $comments    = $recipe.comments;
+    my $ast         = $recipe.ast;
+    my $ast_tree    = $recipe.match;
 =end code
 
 =end SYNOPSIS

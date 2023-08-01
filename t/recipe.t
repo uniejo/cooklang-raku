@@ -8,6 +8,7 @@ use Cooklang;
 my $text = 't/canonical.yaml'.IO.slurp;
 my $canonical = load-yaml($text);
 my %count = failed => 0, matched => 0, total => 0;
+
 for $canonical<tests>.sort(*.key).map(*.kv).flat -> $name, $test {
 #   note "Testing: $name : ", $test<source>.subst(/\v/, '\v', :g);
     my $recipe = Cooklang.new( recipe => $test<source> );
@@ -19,6 +20,7 @@ for $canonical<tests>.sort(*.key).map(*.kv).flat -> $name, $test {
     subtest 'is-deeply' => {
         is-deeply( $recipe.ast, $test<result>, $test_message);
     };
+
 #   note $recipe.metadata;
 #   note $recipe.ingredients;
 #   note $recipe.steps;

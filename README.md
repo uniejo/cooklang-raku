@@ -15,6 +15,10 @@ SYNOPSIS
     my $file = 'recipe.cook';
     my $recipe = Cooklang.new( recipe_file => $file );
     ...
+    my $files = [ 'recipe1.cook', 'recipe2.cook' ];
+    my $recipe = Cooklang.new( recipe_file => $files );
+    # Currently does a simple join of all files, before parsing.
+    ...
     my $metadata = $recipe.metadata;
     my $ingredients = $recipe.ingredients;
     my $steps = $recipe.steps;
@@ -25,7 +29,7 @@ SYNOPSIS
 VERSION
 =======
 
-    version 1.0.3
+    version 1.0.4
 
 AVAILABILITY
 ============
@@ -69,12 +73,12 @@ COMMUNITY
 AUTHOR
 ======
 
-Erik Johansen
+Erik Johansen - uniejo@users.noreply.github.com
 
 COPYRIGHT
 =========
 
-Erik Johansen 2023 -
+Erik Johansen 2023
 
 LICENSE
 =======

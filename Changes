@@ -1,5 +1,8 @@
 Revision history for Cooklang
 
+1.0.4   2023-08-01 13:15:00 Europe/Copenhagen
+ - Accept list of .cook files
+
 1.0.3   2023-08-01 11:00:00 Europe/Copenhagen
  - Update POD6.
 

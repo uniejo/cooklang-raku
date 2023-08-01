@@ -1,4 +1,4 @@
-unit class Cooklang:ver<1.0.3>:auth<Erik Johansen (uniejo@cpan.org)>;
+unit class Cooklang:ver<1.0.4>:auth<zef:uniejo>;
 use AttrX::Mooish;
 
 has $.recipe_file  is rw  is mooish(:trigger);
@@ -18,8 +18,8 @@ grammar Recipe {
     token amount        { <quantity> [ '%' <units> ]? }
     token meta_label    { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
-    token quantity      { <- [\%\}] >* }  # except for '%' and '}'
-    token units         { <- [\%\}] >+ }  # except for '}'
+    token quantity      { <- [\%\}] >* }  # except for '%' and '}' (0 or more)
+    token units         { <- [\%\}] >+ }  # except for '%' and '}' (1 or more)
     token item_text     { <- [\{\@] >+ }  # except for '{' and '@'
     token item_word     { <- [\{\s] >+ }  # except for '{' and whitespace
     token step_text     { <- [\@\#\~\-\v] >+ }
@@ -107,7 +107,7 @@ class RecipeActions {
        my %res;
        %res<quantity> = $/<quantity>.made if $/<quantity>;
        %res<units>    = $/<units>.made    if $/<units>;
-       %res<units>    //= "";#    if %res<quantity>;
+       %res<units>    //= "";
        make %res;
     }
     method timer ($/) {
@@ -148,9 +148,9 @@ class RecipeActions {
     }
 }
 
-# Read recipe from file
+# Read recipe from file (or list of files)
 method trigger-recipe_file ($recipe_file) {
-    $!recipe = $recipe_file.IO.slurp;
+    $!recipe = $recipe_file ~~ Array ?? $recipe_file.map(*.IO.slurp).join("\n\n") !! $recipe_file.IO.slurp;
     $!match = Recipe.parse($!recipe, actions => RecipeActions);
 }
 
@@ -197,6 +197,10 @@ Cooklang - C<Raku> C<Cooklang> parser
     my $file = 'recipe.cook';
     my $recipe = Cooklang.new( recipe_file => $file );
     ...
+    my $files = [ 'recipe1.cook', 'recipe2.cook' ];
+    my $recipe = Cooklang.new( recipe_file => $files );
+    # Currently does a simple join of all files, before parsing.
+    ...
     my $metadata = $recipe.metadata;
     my $ingredients = $recipe.ingredients;
     my $steps = $recipe.steps;
@@ -208,7 +212,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin VERSION
 
-    version 1.0.3
+    version 1.0.4
 
 =end VERSION
 
@@ -256,11 +260,11 @@ If you have zef, you only need one line:
 =end COMMUNITY
 
 =begin AUTHOR
-Erik Johansen
+Erik Johansen - uniejo@users.noreply.github.com
 =end AUTHOR
 
 =begin COPYRIGHT
-Erik Johansen 2023 -
+Erik Johansen 2023
 =end COPYRIGHT
 
 =begin LICENSE

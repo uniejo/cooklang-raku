@@ -1,2 +1,3 @@
 lib/Cooklang.rakumod.copy
+.precomp/*
 INSTALL

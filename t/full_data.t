@@ -28,7 +28,7 @@ my $recipe = Cooklang.new( recipe => $source );
 # note $recipe.match;
 
 my %expected =
-    ast => {
+    data => {
         metadata => {
             'First meta' => 'This is first meta',
             'Second meta' => 'This is second meta',
@@ -87,8 +87,8 @@ my %expected =
         {:type('comment'), value => "Source: https://www.jamieoliver.com/recipes/eggs-recipes/easy-pancakes/" },
     ],
 ;
-subtest 'is-deeply' => { is-deeply( $recipe.ast, %expected<ast>, 'Test .ast output') };
-subtest 'is-deeply' => { is-deeply( $recipe.metadata, %expected<ast><metadata>, 'Test .metadata output') };
+subtest 'is-deeply' => { is-deeply( $recipe.data, %expected<data>, 'Test .data output') };
+subtest 'is-deeply' => { is-deeply( $recipe.metadata, %expected<data><metadata>, 'Test .metadata output') };
 subtest 'is-deeply' => { is-deeply( $recipe.ingredients, %expected<ingredients>, 'Test .ingredients output') };
 subtest 'is-deeply' => { is-deeply( $recipe.comments, %expected<comments>, 'Test .comments output') };
 

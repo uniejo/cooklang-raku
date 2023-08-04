@@ -23,14 +23,14 @@ SYNOPSIS
     my $ingredients = $recipe.ingredients;
     my $steps       = $recipe.steps;
     my $comments    = $recipe.comments;
-    my $ast         = $recipe.ast;
+    my $data        = $recipe.data;
     my $ast_tree    = $recipe.match;
 ```
 
 VERSION
 =======
 
-    version 1.0.6
+    version 1.1.0
 
 AVAILABILITY
 ============

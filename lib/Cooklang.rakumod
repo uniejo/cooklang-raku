@@ -1,4 +1,4 @@
-unit class Cooklang:ver<1.0.6>:auth<zef:uniejo>;
+unit class Cooklang:ver<1.1.0>:auth<zef:uniejo>;
 use AttrX::Mooish;
 
 has $.recipe_file  is rw  is mooish(:trigger);
@@ -8,24 +8,24 @@ has $.match        is rw;
 grammar Recipe {
     rule TOP            { <line>+ }
     token line          { [ <comments> | <metadata> | <step>+ | \v ] \v? }
-    token step          { <step_part> | <step_text> }
-    token step_part     { <ingredient> | <cookware> | <timer> | <comments> }
+    token step          { <step_item> | <step_text> }
+    token step_item     { <ingredient> | <cookware> | <timer> | <comments> }
     token metadata      { '>>' <meta_label> \s* ':' <meta_value> }
     token ingredient    { '@'  [ <item_text> <qamount> | <item_word> ]  }
     token cookware      { '#'  [ <item_text> <qamount> | <item_word> ]  }
     token timer         { '~'  <item_text>? <qamount>  }
-    token qamount       { '{' ~ '}' [ <amount> | <units> ]? }
+    token qamount       { '{' ~ '}'  [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? }
     token comment       { '--' <( \V* )> }
     token block_comment { '[-' ~ '-]' .*? }
     token comments      { <comment> | <block_comment> }
-    token amount        { <quantity> [ '%' <units> ]? }
     token meta_label    { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
     token quantity      { <- [\%\}] >* }  # except for '%' and '}' (0 or more)
     token units         { <- [\%\}] >+ }  # except for '%' and '}' (1 or more)
-    token item_text     { [ <!before <step_part>> <- [\{] > ]+ }  # except for '{' and <step_part>
-    token item_word     { [ <!before <step_part>> \S ]+ }  # except for whitespace and <step_part>
-    token step_text     { [ <!before <step_part>> \V ]+ }  # Non-vertial as long as it does not match <step_part> (full match)
+    token modifier      { <- [\%\}] >+ }  # except for '%' and '}' (1 or more)
+    token item_text     { [ <!before <step_item>> <- [\{] > ]+ }  # except for '{' and <step_item>
+    token item_word     { [ <!before <step_item>> \S ]+ }  # except for whitespace and <step_item>
+    token step_text     { [ <!before <step_item>> \V ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
 #   Note \v includes:  U+000A LINE FEED  U+000B VERTICAL TABULATION  U+000C FORM FEED  U+000D CARRIAGE RETURN  U+0085 NEXT LINE  U+2028 LINE SEPARATOR  U+2029 PARAGRAPH SEPARATOR
 }
 
@@ -50,10 +50,10 @@ class RecipeActions {
        make %res;
     }
     method step ($/) {
-       my %res = $/<step_part> ?? $/<step_part>.made !! $/<step_text> ?? $/<step_text>.made !! Empty;
+       my %res = $/<step_item> ?? $/<step_item>.made !! $/<step_text> ?? $/<step_text>.made !! Empty;
        make %res;
     }
-    method step_part ($/) {  # Alternative of matches
+    method step_item ($/) {  # Alternative of matches
        my @steps       = $/<ingredient cookware timer>.grep(*.so)>>.made.list;
        my @ingredients;
        push @ingredients, $/<ingredient>.made   if $/<ingredient>;
@@ -64,7 +64,7 @@ class RecipeActions {
     method ingredient ($/) {
        return make Empty   unless $/;
        my %res = units => "";
-       %res = $/<qamount>.made if $/<qamount> && $/<qamount>.made;
+       %res = $/<qamount>.made if $/<qamount>;
        %res<type> = 'ingredient';
        %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
        %res<quantity> //= 1;
@@ -80,27 +80,19 @@ class RecipeActions {
        %res<units>:delete;
        make %res;
     }
-    method qamount ($/) {
-       my %res;
-       %res = $/<amount>.made if $/<amount>;
-       %res<units> = $/<units>.made if $/<units>;
-       %res<quantity> //= Nil;
-       %res<units>    //= "" if $/<quantity>;
-       make %res;
-    }
-    method amount ($/) {
-       my %res;
-       %res<quantity> = $/<quantity>.made if $/<quantity>;
-       %res<units>    = $/<units>.made    if $/<units>;
-       %res<units>    //= "";
-       make %res;
-    }
     method timer ($/) {
        return make Empty   unless $/;
        my %res;
        %res = $/<qamount>.made  if $/<qamount>;
        %res<type> = 'timer';
        %res<name> = $/<item_text> ?? ~$/<item_text> !! "";
+       make %res;
+    }
+    method qamount ($/) {
+       my %res;
+       %res<quantity> = $/<quantity> && $/<quantity>.made;
+       %res<units>    = $/<units> && $/<units>.made // "";
+       %res<modifier> = $/<modifier>.made if $/<modifier>;
        make %res;
     }
     method quantity ($/) {
@@ -115,8 +107,10 @@ class RecipeActions {
        make $res;
     }
     method units ($/) {
-       my $res = ~$/.trim // "";
-       make $res;
+       make ~$/.trim // "";
+    }
+    method modifier ($/) {
+       make ~$/.trim // "";
     }
     method step_text ($/) {
        return make Empty   unless $/;
@@ -146,10 +140,10 @@ method trigger-recipe ($recipe) {
     $!match = Recipe.parse($recipe, actions => RecipeActions);
 }
 
-# Return ast
+# Return data
 # Note that this removes a bit of info from the raw ast
 # The removed fields are available directly from the object (see methods below).
-method ast {
+method data {
     return $!match  unless $!match && $!match.made;
     my %res = $!match.made;
     %res<metadata> = $[]  unless %res<metadata> && %res<metadata>.?keys;
@@ -192,7 +186,7 @@ Cooklang - C<Raku> C<Cooklang> parser
     my $ingredients = $recipe.ingredients;
     my $steps       = $recipe.steps;
     my $comments    = $recipe.comments;
-    my $ast         = $recipe.ast;
+    my $data        = $recipe.data;
     my $ast_tree    = $recipe.match;
 =end code
 
@@ -200,7 +194,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin VERSION
 
-    version 1.0.6
+    version 1.1.0
 
 =end VERSION
 

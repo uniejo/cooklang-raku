@@ -1,5 +1,9 @@
 Revision history for Cooklang
 
+1.1.0   2023-08-04 13:04:10 Europe/Copenhagen
+ - Renamed .ast to .data, as it does not return an AST tree.
+ - Added parsing for '//' modifiier.
+
 1.0.6   2023-08-04 09:42:30 Europe/Copenhagen
  - Improved match where it could fail to match recipe
 

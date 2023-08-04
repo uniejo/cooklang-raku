@@ -1,5 +1,8 @@
 Revision history for Cooklang
 
+1.0.6   2023-08-04 09:42:30 Europe/Copenhagen
+ - Improved match where it could fail to match recipe
+
 1.0.5   2023-08-01 13:15:00 Europe/Copenhagen
  - Accept list of .cook files
 

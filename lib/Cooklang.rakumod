@@ -159,9 +159,9 @@ method ast {
 }
 
 method metadata    { $!match && $!match.made && $!match.made<metadata>  }
-method ingredients { $!match && $!match.made && $!match.made<ingredients>.list  }
-method steps       { $!match && $!match.made && $!match.made<steps>.list  }
-method comments    { $!match && $!match.made && $!match.made<comments>.list  }
+method ingredients { $!match && $!match.made && $!match.made<ingredients>  }
+method steps       { $!match && $!match.made && $!match.made<steps>     }
+method comments    { $!match && $!match.made && $!match.made<comments>  }
 
 
 

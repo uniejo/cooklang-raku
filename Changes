@@ -1,5 +1,8 @@
 Revision history for Cooklang
 
+1.1.1   2023-08-10 15:17:30 Europe/Copenhagen
+ - Add qamount note
+
 1.1.0   2023-08-04 13:04:10 Europe/Copenhagen
  - Renamed .ast to .data, as it does not return an AST tree.
  - Added parsing for '//' modifiier.

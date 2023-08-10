@@ -2,3 +2,4 @@ lib/Cooklang.rakumod.*
 .precomp/*
 lib/.precomp/*
 INSTALL
+set_version

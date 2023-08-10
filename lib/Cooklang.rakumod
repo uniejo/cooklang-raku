@@ -1,4 +1,4 @@
-unit class Cooklang:ver<1.1.0>:auth<zef:uniejo>;
+unit class Cooklang:ver<1.1.1>:auth<zef:uniejo>;
 use AttrX::Mooish;
 
 has $.recipe_file  is rw  is mooish(:trigger);
@@ -14,18 +14,19 @@ grammar Recipe {
     token ingredient    { '@'  [ <item_text> <qamount> | <item_word> ]  }
     token cookware      { '#'  [ <item_text> <qamount> | <item_word> ]  }
     token timer         { '~'  <item_text>? <qamount>  }
-    token qamount       { '{' ~ '}'  [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? }
+    token qamount       { '{' ~ '}'  [ <quantity>? [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <note> ]? }
     token comment       { '--' <( \V* )> }
     token block_comment { '[-' ~ '-]' .*? }
     token comments      { <comment> | <block_comment> }
     token meta_label    { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
-    token quantity      { <- [\%\}] >* }  # except for '%' and '}' (0 or more)
-    token units         { <- [\%\}] >+ }  # except for '%' and '}' (1 or more)
-    token modifier      { <- [\%\}] >+ }  # except for '%' and '}' (1 or more)
     token item_text     { [ <!before <step_item>> <- [\{] > ]+ }  # except for '{' and <step_item>
     token item_word     { [ <!before <step_item>> \S ]+ }  # except for whitespace and <step_item>
     token step_text     { [ <!before <step_item>> \V ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
+    token quantity      { [ <!before ['%'|'//'|';'|'}'] > . ]+ }
+    token units         { [ <!before [    '//'|';'|'}'] > . ]+ }
+    token modifier      { [ <!before [         ';'|'}'] > . ]+ }
+    token note          { [ <!before [         '}'] > . ]+ }
 #   Note \v includes:  U+000A LINE FEED  U+000B VERTICAL TABULATION  U+000C FORM FEED  U+000D CARRIAGE RETURN  U+0085 NEXT LINE  U+2028 LINE SEPARATOR  U+2029 PARAGRAPH SEPARATOR
 }
 
@@ -68,6 +69,8 @@ class RecipeActions {
        %res<type> = 'ingredient';
        %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
        %res<quantity> //= 1;
+       %res<modifier> = ~$/<modifier>  if $/<modifier>;
+       %res<note> = ~$/<note>  if $/<note>;
        make %res;
     }
     method cookware ($/) {
@@ -194,7 +197,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin VERSION
 
-    version 1.1.0
+    version 1.1.1
 
 =end VERSION
 

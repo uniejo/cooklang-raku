@@ -3,6 +3,7 @@ use AttrX::Mooish;
 
 has $.recipe_file  is rw  is mooish(:trigger);
 has $.recipe       is rw  is mooish(:trigger);
+has $.factor       is rw  is mooish(:trigger) = 1;
 has $.match        is rw;
 
 grammar Recipe {
@@ -31,6 +32,7 @@ grammar Recipe {
 }
 
 class RecipeActions {
+    has $.factor       is readonly = 1;
     method TOP ($/) {
        my @parts = $/<line>>>.made.grep(*.so);
        my %metadata    = @parts>>.<metadata>.grep(*.so)>>.list.flat;
@@ -68,7 +70,7 @@ class RecipeActions {
        %res = $/<qamount>.made if $/<qamount>;
        %res<type> = 'ingredient';
        %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
-       %res<quantity> //= 1;
+       %res<quantity> //= 1*$!factor;
        %res<modifier> = ~$/<modifier>  if $/<modifier>;
        %res<note> = ~$/<note>  if $/<note>;
        make %res;
@@ -104,9 +106,15 @@ class RecipeActions {
        my $res =
            !$/ ?? Nil !!
            $q_trim eq '' ?? Nil !!            # Nothing if empty after trimming
-           $q_nosp ~~ /^0\d/ ?? $q_trim !!    # Do not accept number like 01...
-           try { 0+$q_nosp } //               # Make quantity numeric (if possible)
-           $q_trim;                           # Otherwise use trimmed text
+           try { # Make quantity numeric (if possible), no zero prefix
+	       die if $q_nosp ~~ /^0\d/;
+	       (0+$q_nosp)*$.factor
+           } //
+	 # $q_nosp ~~ /^([1-9]\d*)-(([1-9]\d*)$/ ?? try { [$1,$2].map{* * $.factor}.join("-") } //
+           $q_trim ~ ($.factor != 1 ?? " * {$.factor}" !! "");  # Otherwise use trimmed text (but add factor if present)
+
+       say "Quantity {$/} * { $.factor } = {$res.raku}";
+ 
        make $res;
     }
     method units ($/) {
@@ -135,12 +143,16 @@ class RecipeActions {
 # Read recipe from file (or list of files)
 method trigger-recipe_file ($recipe_file) {
     $!recipe = [$recipe_file]>>.map(*.IO.slurp).join("\n\n");
-    $!match = Recipe.parse($!recipe, actions => RecipeActions);
+    $!match = Recipe.parse($!recipe, actions => RecipeActions.new);
 }
 
 # Recipe text passed directly
 method trigger-recipe ($recipe) {
-    $!match = Recipe.parse($recipe, actions => RecipeActions);
+    $!match = Recipe.parse($recipe, actions => RecipeActions.new);
+}
+
+method trigger-factor ($factor) {
+    $!match = Recipe.parse($!recipe, actions => RecipeActions.new( factor => $factor ) );
 }
 
 # Return data
@@ -159,7 +171,6 @@ method metadata    { $!match && $!match.made && $!match.made<metadata>  }
 method ingredients { $!match && $!match.made && $!match.made<ingredients>  }
 method steps       { $!match && $!match.made && $!match.made<steps>     }
 method comments    { $!match && $!match.made && $!match.made<comments>  }
-
 
 
 =begin pod

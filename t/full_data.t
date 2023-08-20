@@ -92,5 +92,9 @@ subtest 'is-deeply' => { is-deeply( $recipe.metadata, %expected<data><metadata>,
 subtest 'is-deeply' => { is-deeply( $recipe.ingredients, %expected<ingredients>, 'Test .ingredients output') };
 subtest 'is-deeply' => { is-deeply( $recipe.comments, %expected<comments>, 'Test .comments output') };
 
+#note("Ingredient (unsorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.list;
+#note("Ingredient (sorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort;
+#note("Ingredient (sorted by name): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort(by => [<name>]);
+#note("Ingredient (sorted by units, quantity, name): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort(by => [<units quantity name>]);
 
 done-testing;

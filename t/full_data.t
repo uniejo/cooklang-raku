@@ -39,7 +39,8 @@ my %expected =
                 {:name("eggs"), :quantity(3), :type("ingredient"), :units("")},
                 {:type("text"), :value(" into a blender, then add the ")},
                 {:name("flour"), :quantity(125), :type("ingredient"), :units("g")},
-                {:type("text"), :value(", ")}, {:name("milk"), :quantity(250), :type("ingredient"), :units("ml")},
+                {:type("text"), :value(", ")},
+                {:name("milk"), :quantity(250), :type("ingredient"), :units("ml")},
                 {:type("text"), :value(" and ")},
                 {:name("sea salt"), :quantity(1), :type("ingredient"), :units("pinch")},
                 {:type("text"), :value(", and blitz until smooth.")}
@@ -71,26 +72,27 @@ my %expected =
             ]
         ],
     },
-    ingredients => [
+    ingredients => (
         {:name("eggs"), :quantity(3), :type("ingredient"), :units("")},
         {:name("flour"), :quantity(125), :type("ingredient"), :units("g")},
         {:name("milk"), :quantity(250), :type("ingredient"), :units("ml")},
         {:name("sea salt"), :quantity(1), :type("ingredient"), :units("pinch")},
         {:name("butter"), :quantity(1), :type("ingredient"), :units("")},
         {:name("oil"), :quantity(1), :type("ingredient"), :units("")},
-    ],
-    cookwares => [
+    ),
+    cookwares => (
         {:name("bowl and leave to stand for ~"), :quantity(15), :type("cookware")},
         {:name("large non-stick frying pan"), :quantity(1), :type("cookware")},
-    ],
-    comments => [
+    ),
+    comments => (
         {:type('comment'), value => "Source: https://www.jamieoliver.com/recipes/eggs-recipes/easy-pancakes/" },
-    ],
+        {:type('comment'), value => "Add your favorite topping here to make sure it\'s included in your meal plan!" },
+    ),
 ;
 subtest 'is-deeply' => { is-deeply( $recipe.data, %expected<data>, 'Test .data output') };
 subtest 'is-deeply' => { is-deeply( $recipe.metadata, %expected<data><metadata>, 'Test .metadata output') };
-subtest 'is-deeply' => { is-deeply( $recipe.ingredients, %expected<ingredients>, 'Test .ingredients output') };
-subtest 'is-deeply' => { is-deeply( $recipe.comments, %expected<comments>, 'Test .comments output') };
+subtest 'is-deeply' => { is-deeply( $recipe.ingredients>>.spec-data, %expected<ingredients>, 'Test .ingredients output') };
+subtest 'is-deeply' => { is-deeply( $recipe.comments>>.spec-data, %expected<comments>, 'Test .comments output') };
 
 #note("Ingredient (unsorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.list;
 #note("Ingredient (sorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort;

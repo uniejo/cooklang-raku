@@ -3,3 +3,4 @@ lib/Cooklang.rakumod.*
 lib/.precomp/*
 INSTALL
 set_version
+.prove

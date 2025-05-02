@@ -38,6 +38,7 @@ grammar Recipe {
     token modifier      { [ <!before [         ';'|'}'] > . ]+ }
     token qanote        { [ <!before [         '}'] > . ]+ }
     token vertical      { \v }
+    token note          { [ <!before [             '}'] > . ]+ }
 #   Note \v includes:
 #     U+000A LINE FEED
 #     U+000B VERTICAL TABULATION
@@ -222,16 +223,27 @@ class RecipeActions {
         @.parts.push: $/<step_text>.made if $/<step_text> && $/<step_text>.made;
     }
     method step_item ($/) {  # Alternative of matches
-        my @res = $/<ingredient cookware timer step_comments>.grep(*.so)>>.made.list;
-        make @res;
-    }
-    method step_text ($/) {
-        make Step.new( type => 'text', value => ~$/, orig => ~$/ );
-    }
-    method vertical ($/) {
-        @.parts.push: Vertical.new( type => 'text', value => ~$/, orig => ~$/ )  if $/;
+       #my @res = $/<ingredient cookware timer step_comments>.grep(*.so)>>.made.list;
+       #make @res;
+       my @steps       = $/<ingredient cookware timer>.grep(*.so)>>.made.list;
+       my @ingredients;
+       push @ingredients, $/<ingredient>.made   if $/<ingredient>;
+       my @comments    = $/<comments>.grep(*.so)>>.made;
+       my %res = ingredients => @ingredients, steps => @steps, comments => @comments;
+       make %res;
     }
     method ingredient ($/) {
+       return make Empty   unless $/;
+       my %res = units => "";
+       %res = $/<qamount>.made if $/<qamount>;
+       %res<type> = 'ingredient';
+       %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
+       %res<quantity> //= 1*$!factor;
+       %res<modifier> = ~$/<modifier>  if $/<modifier>;
+       %res<note> = ~$/<note>  if $/<note>;
+       make %res;
+    }
+    method Xingredient ($/) {
         return   unless $/;
         my %res;
 	for %res<measurement> {
@@ -249,6 +261,16 @@ class RecipeActions {
         make Ingredient.new( |%res );
     }
     method cookware ($/) {
+       return make Empty   unless $/;
+       my %res;
+       %res = $/<qamount>.made if $/<qamount>;
+       %res<type> = 'cookware';
+       %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
+       %res<quantity> //= '';
+       %res<units>:delete;
+       make %res;
+    }
+    method Xcookware ($/) {
         return   unless $/;
         my %res;
 	for %res<measurement> {
@@ -259,6 +281,14 @@ class RecipeActions {
         make Cookware.new( |%res );
     }
     method timer ($/) {
+       return make Empty   unless $/;
+       my %res;
+       %res = $/<qamount>.made  if $/<qamount>;
+       %res<type> = 'timer';
+       %res<name> = $/<item_text> ?? ~$/<item_text> !! "";
+       make %res;
+    }
+    method Xtimer ($/) {
         return    unless $/;
         my %res;
         %res<measurement> = $/<qamount> && $/<qamount>.made // Measurement.new;
@@ -267,6 +297,13 @@ class RecipeActions {
         make Timer.new( |%res );
     }
     method qamount ($/) {
+       my %res;
+       %res<quantity> = $/<quantity> && $/<quantity>.made;
+       %res<units>    = $/<units> && $/<units>.made // "";
+       %res<modifier> = $/<modifier>.made if $/<modifier>;
+       make %res;
+    }
+    method Xqamount ($/) {
         my %res;
         %res<quantity> = $/<quantity>.made  if $/<quantity>;
         %res<units>    = $/<units> && $/<units>.made // "";
@@ -274,6 +311,38 @@ class RecipeActions {
         %res<orig> = ~$/;
         self.num_parts( %res<quantity>, %res<number>, $!factor );
 	make Measurement.new( |%res );
+    }
+    method quantity ($/) {
+       my $q_trim = ~$/.trim;
+       my $q_nosp = ~$/.subst(/\s*\/\s*/,"/",:g);   # "1 / 2" becomes "1/2" eval to 0.5
+       my $res =
+           !$/ ?? Nil !!
+           $q_trim eq '' ?? Nil !!            # Nothing if empty after trimming
+           try { # Make quantity numeric (if possible), no zero prefix
+	       die if $q_nosp ~~ /^0\d/;
+	       (0+$q_nosp)*$.factor
+           } //
+	 # $q_nosp ~~ /^([1-9]\d*)-(([1-9]\d*)$/ ?? try { [$1,$2].map{* * $.factor}.join("-") } //
+           $q_trim ~ ($.factor != 1 ?? " * {$.factor}" !! "");  # Otherwise use trimmed text (but add factor if present)
+
+       say "Quantity {$/} * { $.factor } = {$res.raku}";
+
+       make $res;
+    }
+    method Xquantity ($/) {
+	make ~$/.trim  if $/ && ~$/ !~~ /^\s*$/;
+    }
+    method units ($/) {
+        make ~$/.trim // "";
+    }
+    method modifier ($/) {
+        make ~$/.trim // "";
+    }
+    method step_text ($/) {
+        make Step.new( type => 'text', value => ~$/, orig => ~$/ );
+    }
+    method vertical ($/) {
+        @.parts.push: Vertical.new( type => 'text', value => ~$/, orig => ~$/ )  if $/;
     }
     # TODO: num_parts should be able to handle:
     # "num_str "1 1/2" is num 1.5
@@ -305,15 +374,6 @@ class RecipeActions {
         if ( $num ~~ Real ) {
             $num_str = $num;
         }
-    }
-    method units ($/) {
-        make ~$/.trim // "";
-    }
-    method modifier ($/) {
-        make ~$/.trim // "";
-    }
-    method quantity ($/) {
-	make ~$/.trim  if $/ && ~$/ !~~ /^\s*$/;
     }
     method number ($/) {
 	make ~$/.trim  if $/ && ~$/ ne '';

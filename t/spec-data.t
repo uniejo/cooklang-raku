@@ -5,7 +5,7 @@ use YAMLish;
 use lib 'lib';
 use Cooklang;
 
-my $text = 't/canonical.yaml'.IO.slurp;
+my $text = 't/spec/tests/canonical.yaml'.IO.slurp;
 my $canonical = load-yaml($text);
 my %count = failed => 0, matched => 0, total => 0;
 

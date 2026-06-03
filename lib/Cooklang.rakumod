@@ -8,22 +8,24 @@ has $.match        is rw;
 
 grammar Recipe {
     rule TOP            { <line>+ }
-    token line          { [ <line_comments> | <metadata> | <step>+ | <vertical> ] <vertical>? }
+    token line          { [ <line_comment> | <metadata> | <step>+ | <vertical> ] <vertical>? }
     token step          { <step_item> | <step_text> }
-    token step_item     { <ingredient> | <cookware> | <timer> | <step_comments> }
-    token metadata      { '>>' <meta_key> \s* ':' <meta_value> }
+    token step_item     { <ingredient> | <cookware> | <timer> | <step_comment> }
+    token metadata      { <metadata_line> | <metadata_group> }
+    token metadata_line { '>>' <meta_key> \s* ':' <meta_value> }
+    token metadata_group { '---' ~ '---' .*? }
     token ingredient    { '@'  [ <item_text> <qamount> | <item_word> ]  }
     token cookware      { '#'  [ <item_text> <qamount> | <item_word> ]  }
-    token timer         { '~'  <item_text>? <qamount>  }
+    token timer         { '~'  [ <item_text>? <qamount> | <item_word> ] }
     token qamount       { '{' ~ '}' [ [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <qanote> ]? | <qamount_HUH> ] }
-    token line_comments { <comment> | <block_comment> }
-    token step_comments { <comment> | <block_comment> }
-    token comment       { '--' <( \V* )> }
+    token line_comment  { <comment> | <block_comment> }
+    token step_comment  { <comment> | <block_comment> }
+    token comment       { '--' <( \V* )> \V? }
     token block_comment { '[-' ~ '-]' .*? }
     token meta_key      { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
-    token item_text     { [ <!before <step_item>> <- [\{] > ]+ }  # except for '{' and <step_item>
-    token item_word     { [ <!before <step_item>> <- [\s\}]> ]+ }  # except for whitespace and <step_item>
+    token item_text     { [ <!before <step_item>> <- [\{\⸫] > ]+ }  # except for '{' and <step_item>
+    token item_word     { [ <!before '{'> \w ]+ }  # except for whitespace and <step_item>
     token step_text     { [ <!before <step_item>> \V ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
     token quantityX     { [ <!before ['%'|'//'|';'|'}'] > . ]+ }
     token quantityY     { <number> | <quant_text>  }
@@ -157,12 +159,12 @@ class Comment does CookBase {
 }
 class Cookware does CookBase does CookMeasurement {
    # NO units
-#    submethod BUILD {  # Notice this may prevent value input
-#      $!units = Nil;
-#    }
+#   submethod BUILD {  # Notice this may prevent value input
+#     $!units = Nil;
+#   }
     submethod TWEAK() {
-        self.measurement.units = Nil;
-        self.measurement.quantity = "";
+        self.measurement.units    //= Nil;
+        self.measurement.quantity //= 1;
     }
     submethod human (--> Str:D) {
         return self.measurement.human(self.name);
@@ -170,6 +172,9 @@ class Cookware does CookBase does CookMeasurement {
 }
 class Ingredient does CookBase does CookMeasurement {
     has $.note;
+    submethod TWEAK() {
+        self.measurement.quantity //= "some";
+    }
     submethod gist (--> Str:D) {
         return self.orig;
     }
@@ -178,6 +183,10 @@ class Ingredient does CookBase does CookMeasurement {
     }
 }
 class Timer does CookBase does CookMeasurement {
+    submethod TWEAK() {
+        self.measurement.units    //= Nil;
+        self.measurement.quantity //= "";
+    }
     submethod gist (--> Str:D) {
         return self.orig;
     }
@@ -222,7 +231,7 @@ class RecipeActions {
         @.parts.push: $/<step_text>.made if $/<step_text> && $/<step_text>.made;
     }
     method step_item ($/) {  # Alternative of matches
-        my @res = $/<ingredient cookware timer step_comments>.grep(*.so)>>.made.list;
+        my @res = $/<ingredient cookware timer step_comment>.grep(*.so)>>.made.list;
         make @res;
     }
     method step_text ($/) {
@@ -238,7 +247,8 @@ class RecipeActions {
 	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
 	    say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
         # qamount and quantity at the same time - One has to go
-            .quantity //= 1*$!factor;
+            #.quantity //= 1*$!factor;
+            .quantity //= "some";
 	    say "Ingredient { $/ } : quantity now: { .quantity.raku }";
             .number   //= 1*$!factor;
             .modifier = ~$/<modifier>  if $/<modifier>;
@@ -261,8 +271,10 @@ class RecipeActions {
     method timer ($/) {
         return    unless $/;
         my %res;
-        %res<measurement> = $/<qamount> && $/<qamount>.made // Measurement.new;
-        %res<name> = $/<item_text> ?? ~$/<item_text> !! "";
+	for %res<measurement> {
+	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
+	}
+        %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
         %res<orig> = ~$/;
         make Timer.new( |%res );
     }
@@ -319,16 +331,22 @@ class RecipeActions {
 	make ~$/.trim  if $/ && ~$/ ne '';
     }
     method metadata ($/) {
+    }
+    method metadata_line ($/) {
         my %res;
         %res<meta_key>   = ~$/<meta_key>.trim;
         %res<meta_value> = ~$/<meta_value>.trim;
         %res<orig> = ~$/;
         push @.parts, Metadata.new( |%res );
     }
-    method line_comments ($/) {
+    method metadata_group ($/) {
+        my %res;
+        # TODO
+    }
+    method line_comment ($/) {
         push @.parts, Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
     }
-    method step_comments ($/) {
+    method step_comment ($/) {
         make Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
     }
 }
@@ -355,16 +373,17 @@ method data {
     return $!match  unless $!match && $!match.made;
     my %res;
     %res<metadata> = self.metadata;
-    %res<metadata> = $[]  unless %res<metadata> && %res<metadata>.?keys;
+ #  %res<metadata> = $[]  unless %res<metadata> && %res<metadata>.?keys;
     %res<steps> = self.steps;
  #  %res<steps> = $[]  unless %res<steps>;
     return %res;
 }
 
-submethod parts( :$match?, CookBase :$split-by?, :$data-type? ) {
+submethod parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type? ) {
     return Empty  unless $!match && $!match.made;
     my @list = $!match.made;
     @list .= grep( $match );# if $match;#   if $type.^name ne 'Any';
+    @list = join-by(@list, $join-by)   if $join-by;
     @list = split-by(@list, $split-by)   if $split-by.^name ne 'Cooklang::CookBase';
     @list = apply-data-type( @list, $data-type )   if $data-type;
     return @list;
@@ -377,6 +396,46 @@ sub split-by( @list-in, CookBase $split-by ) {
         if $p ~~ $split-by { $add-line = True; next; }
         if $add-line { @list-out.push: []; $add-line = False; }
         @list-out[*-1].push: $p;
+    }
+    return @list-out;
+}
+
+sub join-by( @list-in, $join-by ) {
+    my @list-out;
+    my $item;
+#say "Processing join-by";
+    for @list-in -> $p {
+        if $p ~~ List|Array {
+#say "Processing join-by list >  " ~ $p;
+            @list-out.push: join-by($p, $join-by);
+            next;
+        }
+#say "Processing join-by item     " ~ $p.orig;
+        if $p ~~ $join-by {
+            if $item {
+                $item.value ~= $p.value;
+                $item.orig  ~= $p.orig;
+#say "Processing join-by item 1 +   = " ~ $p.value;
+            }
+            else {
+#say "Processing join-by item 1 . ";
+                $item = $p;
+            }
+        }
+        else {
+            if $item {
+#say "Processing join-by item 0 >    = " ~ $item.value;
+                @list-out.push: $item;
+                $item = Nil;
+            }
+#say "Processing join-by item 0 > " ~ $p;
+            @list-out.push: $p;
+        }
+    }
+    if ( $item ) {
+#say "Processing join-by item L > " ~ $item.value;
+        @list-out.push: $item;
+        $item = Nil;
     }
     return @list-out;
 }
@@ -398,8 +457,19 @@ sub apply-data-type ( @list, $data-type ) {
 method ingredients { return self.parts.grep( * ~~ Ingredient ) }
 method cookware    { return self.parts.grep( * ~~ Cookware ) }
 method comments    { return self.parts.grep( * ~~ Comment ) }
-method steps ( :$data-type = 'spec-data' )  { return self.parts( match => * ~~ Step|Ingredient|Cookware|Timer|Vertical, split-by => Vertical, data-type => $data-type ) }
-method steps_flat ( :$data-type = 'spec-data' )  { return self.parts( type => * ~~ Step|Ingredient|Cookware|Timer, data-type => $data-type ) }
+method steps ( :$data-type = 'spec-data' )  {
+    return self.parts(
+        match => * ~~ Step|Ingredient|Cookware|Timer|Vertical,
+        join-by => * ~~ Step, # type 'text'
+        split-by => Vertical,
+        data-type => $data-type );
+}
+method steps_flat ( :$data-type = 'spec-data' )  {
+    return self.parts(
+        type => * ~~ Step|Ingredient|Cookware|Timer,
+        join-by => * ~~ Step, # type 'text'
+        data-type => $data-type );
+}
 method metadata    {
     my %m;
     %m{.meta_key} = .meta_value for self.parts.grep( * ~~ Cooklang::Metadata );

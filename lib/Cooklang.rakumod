@@ -8,38 +8,41 @@ has $.match        is rw;
 
 grammar Recipe {
     rule TOP            { <line>+ }
-    token line          { [ <line_comment> | <metadata> | <step>+ | <vertical> ] <vertical>? }
+    token ws            { <!ww> \h* }  # rule can have ws between all parts
+    token line          { [ <line_comment> || <metadata> | <step>+ | <vertical> ] <vertical>? }
     token step          { <step_item> | <step_text> }
     token step_item     { <ingredient> | <cookware> | <timer> | <step_comment> }
     token metadata      { <metadata_line> | <metadata_group> }
-    token metadata_line { '>>' <meta_key> \s* ':' <meta_value> }
-    token metadata_group { '---' ~ '---' .*? }
-    token ingredient    { '@'  [ <item_text> <qamount> | <item_word> ]  }
-    token cookware      { '#'  [ <item_text> <qamount> | <item_word> ]  }
-    token timer         { '~'  [ <item_text>? <qamount> | <item_word> ] }
-    token qamount       { '{' ~ '}' [ [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <qanote> ]? | <qamount_HUH> ] }
+    token metadata_group { '---' \h* \v  ~  '---'   <metadata_group_line>* }
+    rule  metadata_line { '>>'  <meta_key> ':' <meta_value> \v }
+    rule  metadata_group_line { <meta_key> ':' <meta_value> \v }
+    token ingredient    { '@' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
+    token cookware      { '#' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
+    token timer         { '~' <!before \h>  [ <item_text>? <qamount> | <item_word> ] }
+    token qamount       { '{'  ~  '}'   [ [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <qanote> ]? | <qamount_HUH> ] }
     token line_comment  { <comment> | <block_comment> }
     token step_comment  { <comment> | <block_comment> }
-    token comment       { '--' <( \V* )> \V? }
-    token block_comment { '[-' ~ '-]' .*? }
+    token comment       { <!after '-'> <!before '---'> '--'  <( \V* )> \v? }
+    token block_comment { '[-'  ~  '-]'   .*? }
     token meta_key      { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
-    token item_text     { [ <!before <step_item>> <- [\{\⸫] > ]+ }  # except for '{' and <step_item>
-    token item_word     { [ <!before '{'> \w ]+ }  # except for whitespace and <step_item>
+    token item_text     { [ <!before <step_item> | '{' > \V ]+ }  # except for '{' and <step_item>
+    token item_word     { [ <!before '{'> [ \w | '🧂'] ]+ }  # except for whitespace and <step_item>
     token step_text     { [ <!before <step_item>> \V ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
-    token quantityX     { [ <!before ['%'|'//'|';'|'}'] > . ]+ }
-    token quantityY     { <number> | <quant_text>  }
-    token quantity      { <quant_text>  }
-    token quant_text    { [ <!before ['%'|'//'|';'|'}'] > . ]* }
-    token qamount_HUH   { [ <!before ['}'] > . ]* }
     token number        { <number_part> [\s+ <reci> ] ? | <reci>  }
-    token reci          { <intval> \s* '/' \s* <intval> }
+    rule  reci          { <intval> '/' <intval> }
     token intval        { <[1..9.]><[0..9]>* }
     token number_part   { <[1..9.]><[0..9.]>* }
+    token quantity      { <quant_text>  }
+    token quantityY     { <number> | <quant_text>  }
+    token quant_text    { [ <!before ['%'|'//'|';'|'}'] > . ]* }
     token units         { [ <!before [    '//'|';'|'}'] > . ]+ }
     token modifier      { [ <!before [         ';'|'}'] > . ]+ }
-    token qanote        { [ <!before [         '}'] > . ]+ }
+    token qanote        { [ <!before [             '}'] > . ]+ }
+    token qamount_HUH   { [ <!before [             '}'] > . ]* }
+    token hspace        { \h }
     token vertical      { \v }
+#   Note \h is horisontal white space. ie. \s - \v
 #   Note \v includes:
 #     U+000A LINE FEED
 #     U+000B VERTICAL TABULATION
@@ -164,6 +167,7 @@ class Cookware does CookBase does CookMeasurement {
 #   }
     submethod TWEAK() {
         self.measurement.units    //= Nil;
+        self.measurement.units    = Nil if self.measurement.units:defined && self.measurement.units eq "";
         self.measurement.quantity //= 1;
     }
     submethod human (--> Str:D) {
@@ -262,7 +266,7 @@ class RecipeActions {
         return   unless $/;
         my %res;
 	for %res<measurement> {
-	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
+	    $_ = $/<qamount> && $/<qamount>.made.clone( units => Nil ) // Measurement.new( units => "" );
 	}
         %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
         %res<orig> = ~$/;
@@ -331,17 +335,42 @@ class RecipeActions {
 	make ~$/.trim  if $/ && ~$/ ne '';
     }
     method metadata ($/) {
+say "Processing metadata " ~ ~$/;
+    }
+    method metadata_group ($/) {
+        my %res;
+say "Processing metadata_group " ~ ~$/;
+        # TODO
+#for %res<metadata_group_line> {
+#           #  %res<meta_key>   = ~$/<meta_key>.trim;
+#           #  %res<meta_value> = ~$/<meta_value>.trim;
+#    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
+#    say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
+#       # qamount and quantity at the same time - One has to go
+#           #.quantity //= 1*$!factor;
+#           .quantity //= "some";
+#    say "Ingredient { $/ } : quantity now: { .quantity.raku }";
+      #     .number   //= 1*$!factor;
+      #     .modifier = ~$/<modifier>  if $/<modifier>;
+      # }
+      # %res<orig> = ~$/;
+      # push @.parts, Metadata.new( |%res );
     }
     method metadata_line ($/) {
+say "Processing metadata_line " ~ ~$/;
         my %res;
         %res<meta_key>   = ~$/<meta_key>.trim;
         %res<meta_value> = ~$/<meta_value>.trim;
         %res<orig> = ~$/;
         push @.parts, Metadata.new( |%res );
     }
-    method metadata_group ($/) {
+    method metadata_group_line ($/) {
+say "Processing metadata_group_line { (~$/).raku }";
         my %res;
-        # TODO
+        %res<meta_key>   = ~$/<meta_key>.trim;
+        %res<meta_value> = ~$/<meta_value>.trim;
+        %res<orig> = ~$/;
+        push @.parts, Metadata.new( |%res );
     }
     method line_comment ($/) {
         push @.parts, Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
@@ -413,8 +442,7 @@ sub join-by( @list-in, $join-by ) {
 #say "Processing join-by item     " ~ $p.orig;
         if $p ~~ $join-by {
             if $item {
-                $item.value ~= $p.value;
-                $item.orig  ~= $p.orig;
+                $item = $item.clone( value => $item.value ~ $p.value, orig => $item.orig ~ $p.orig );
 #say "Processing join-by item 1 +   = " ~ $p.value;
             }
             else {

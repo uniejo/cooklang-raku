@@ -77,8 +77,8 @@ my %expected =
         {:name("flour"), :quantity(125), :type("ingredient"), :units("g")},
         {:name("milk"), :quantity(250), :type("ingredient"), :units("ml")},
         {:name("sea salt"), :quantity(1), :type("ingredient"), :units("pinch")},
-        {:name("butter"), :quantity(1), :type("ingredient"), :units("")},
-        {:name("oil"), :quantity(1), :type("ingredient"), :units("")},
+        {:name("butter"), :quantity("some"), :type("ingredient"), :units("")},
+        {:name("oil"), :quantity("some"), :type("ingredient"), :units("")},
     ),
     cookwares => (
         {:name("bowl and leave to stand for ~"), :quantity(15), :type("cookware")},

@@ -8,8 +8,11 @@ use Cooklang;
 my $text = 't/spec/tests/canonical.yaml'.IO.slurp;
 my $canonical = load-yaml($text);
 my %count = failed => 0, matched => 0, total => 0;
+my $test_method = %*ENV<TEST_METHOD> // rx/./;
+my $filter = rx{$test_method};
 
 for $canonical<tests>.sort(*.key).map(*.kv).flat -> $name, $test {
+    next if $name !~~ $filter;
 #   note "Testing: $name : ", $test<source>.subst(/\v/, '\v', :g);
     my $recipe = Cooklang.new( recipe => $test<source> );
 #   note "Object data:\t", $recipe.data.raku;
@@ -20,10 +23,10 @@ for $canonical<tests>.sort(*.key).map(*.kv).flat -> $name, $test {
     %count<total>++;
 
     my $test_title =  sprintf("Test: %s", $name);
-    my $test_message =  sprintf("  Input text:   %s\n  Expected:    %s\n  Object DATA:  %s",
+    my $test_message =  sprintf("  Input text:   %s\n  Expected:    %s\n  Got (.data):  %s",
         $test<source>.subst(/\v/, '\v', :g), $test<result>.raku, $recipe.data.raku);
 
-    subtest $test_title => {
+    subtest $name => {
         is-deeply( $recipe.data, $test<result>, $test_message);
     };
 

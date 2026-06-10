@@ -13,16 +13,16 @@ grammar Recipe {
     token step          { <step_item> | <step_text> }
     token step_item     { <ingredient> | <cookware> | <timer> | <step_comment> }
     token metadata      { <metadata_line> | <metadata_group> }
-    token metadata_group { '---' \h* \v  ~  '---'   <metadata_group_line>* }
-    rule  metadata_line { '>>'  <meta_key> ':' <meta_value> \v }
+    rule  metadata_group { :m ^ '---' \h* \v  ~  '---'   <metadata_group_line>* }
+    rule  metadata_line  {      '>>'  <meta_key> ':' <meta_value> \v }
     rule  metadata_group_line { <meta_key> ':' <meta_value> \v }
     token ingredient    { '@' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
     token cookware      { '#' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
     token timer         { '~' <!before \h>  [ <item_text>? <qamount> | <item_word> ] }
     token qamount       { '{'  ~  '}'   [ [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <qanote> ]? | <qamount_HUH> ] }
-    token line_comment  { <comment> | <block_comment> }
-    token step_comment  { <comment> | <block_comment> }
-    token comment       { <!after '-'> <!before '---'> '--'  <( \V* )> \v? }
+    token line_comment  { <comment> \v | <block_comment> }
+    token step_comment  { <comment> \v? | <block_comment> }
+    token comment       { <!after '-'> <!before '---'> '--'  <( \V* )> }
     token block_comment { '[-'  ~  '-]'   .*? }
     token meta_key      { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
@@ -166,8 +166,6 @@ class Cookware does CookBase does CookMeasurement {
 #     $!units = Nil;
 #   }
     submethod TWEAK() {
-        self.measurement.units    //= Nil;
-        self.measurement.units    = Nil if self.measurement.units:defined && self.measurement.units eq "";
         self.measurement.quantity //= 1;
     }
     submethod human (--> Str:D) {
@@ -188,7 +186,7 @@ class Ingredient does CookBase does CookMeasurement {
 }
 class Timer does CookBase does CookMeasurement {
     submethod TWEAK() {
-        self.measurement.units    //= Nil;
+     #   self.measurement.units    //= Nil;
         self.measurement.quantity //= "";
     }
     submethod gist (--> Str:D) {
@@ -266,7 +264,8 @@ class RecipeActions {
         return   unless $/;
         my %res;
 	for %res<measurement> {
-	    $_ = $/<qamount> && $/<qamount>.made.clone( units => Nil ) // Measurement.new( units => "" );
+	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( );
+	    $_ = $_.clone( units => $/<qamount>:exists ?? Nil !! "" );
 	}
         %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
         %res<orig> = ~$/;
@@ -284,6 +283,7 @@ class RecipeActions {
     }
     method qamount ($/) {
         my %res;
+say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
         %res<quantity> = $/<quantity>.made  if $/<quantity>;
         %res<units>    = $/<units> && $/<units>.made // "";
         %res<modifier> = $/<modifier>.made if $/<modifier>;
@@ -376,7 +376,7 @@ say "Processing metadata_group_line { (~$/).raku }";
         push @.parts, Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
     }
     method step_comment ($/) {
-        make Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
+        make          Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
     }
 }
 

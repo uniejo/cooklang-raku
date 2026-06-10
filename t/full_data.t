@@ -89,10 +89,10 @@ my %expected =
         {:type('comment'), value => "Add your favorite topping here to make sure it\'s included in your meal plan!" },
     ),
 ;
-subtest 'is-deeply' => { is-deeply( $recipe.data, %expected<data>, 'Test .data output') };
-subtest 'is-deeply' => { is-deeply( $recipe.metadata, %expected<data><metadata>, 'Test .metadata output') };
-subtest 'is-deeply' => { is-deeply( $recipe.ingredients>>.spec-data, %expected<ingredients>, 'Test .ingredients output') };
-subtest 'is-deeply' => { is-deeply( $recipe.comments>>.spec-data, %expected<comments>, 'Test .comments output') };
+subtest '.data is-deeply' => { is-deeply( $recipe.data, %expected<data>, 'Test .data output') };
+subtest '.metadata is-deeply' => { is-deeply( $recipe.metadata, %expected<data><metadata>, 'Test .metadata output') };
+subtest '.ingredients is-deeply' => { is-deeply( $recipe.ingredients>>.spec-data, %expected<ingredients>, 'Test .ingredients output') };
+subtest '.comments is-deeply' => { is-deeply( $recipe.comments>>.spec-data, %expected<comments>, 'Test .comments output') };
 
 #note("Ingredient (unsorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.list;
 #note("Ingredient (sorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort;

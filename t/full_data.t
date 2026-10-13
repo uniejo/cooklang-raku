@@ -47,18 +47,18 @@ my %expected =
             ],
             [
                 {:type("text"), :value("Pour into a ")},
-                {:name("bowl"), :quantity(""), :type("cookware")},
+                {:name("bowl"), :quantity(1), :type("cookware")},
                 {:type("text"), :value(" and leave to stand for ")},
                 {:name(""), :quantity(15), :units('minutes'), :type("timer")},
                 {:type("text"), :value(".")},
             ],
             [
                 {:type("text"), :value("Melt the ")},
-                {:name("butter"), :quantity(1), :type("ingredient"), :units("")},
+                {:name("butter"), :quantity("some"), :type("ingredient"), :units("")},
                 {:type("text"), :value(" (or a drizzle of ")},
-                {:name("oil"), :quantity(1), :type("ingredient"), :units("")},
+                {:name("oil"), :quantity("some"), :type("ingredient"), :units("")},
                 {:type("text"), :value(" if you want to be a bit healthier) in a ")},
-                {:name("large non-stick frying pan"), :quantity(""), :type("cookware")},
+                {:name("large non-stick frying pan"), :quantity(1), :type("cookware")},
                 {:type("text"), :value(" on a medium heat, then tilt the pan so the butter coats the surface.")}
             ],
             [

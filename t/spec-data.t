@@ -14,6 +14,11 @@ my $filter = rx{$test_method};
 for $canonical<tests>.sort(*.key).map(*.kv).flat -> $name, $test {
     next if $name !~~ $filter;
 #   note "Testing: $name : ", $test<source>.subst(/\v/, '\v', :g);
+    # Cookware has no units (spec tests/README.md), but a few canonical tests
+    # list `units: ""` for cookware anyway. Drop it so all tests agree.
+    for $test<result><steps>.map(|*) -> $item {
+        $item<units>:delete if $item<type> eq 'cookware' && ($item<units> // '-') eq '';
+    }
     my $recipe = Cooklang.new( recipe => $test<source> );
 #   note "Object data:\t", $recipe.data.raku;
 #   note "Object match:\t", $recipe.match.raku;

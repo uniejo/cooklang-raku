@@ -9,26 +9,28 @@ has $.match        is rw;
 grammar Recipe {
     rule TOP            { <line>+ }
     token ws            { <!ww> \h* }  # rule can have ws between all parts
-    token line          { [ <line_comment> || <metadata> | <step>+ | <vertical> ] <vertical>? }
+    token line          { [ <metadata> | <line_comment> | <step>+ | <vertical> ] <vertical>? }
     token step          { <step_item> | <step_text> }
     token step_item     { <ingredient> | <cookware> | <timer> | <step_comment> }
     token metadata      { <metadata_line> | <metadata_group> }
     rule  metadata_group { :m ^ '---' \h* \v  ~  '---'   <metadata_group_line>* }
     rule  metadata_line  {      '>>'  <meta_key> ':' <meta_value> \v }
     rule  metadata_group_line { <meta_key> ':' <meta_value> \v }
+    rule  non_metadata_group { '---' \h* \v  ~  '---'  .*? }
     token ingredient    { '@' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
     token cookware      { '#' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
     token timer         { '~' <!before \h>  [ <item_text>? <qamount> | <item_word> ] }
     token qamount       { '{'  ~  '}'   [ [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <qanote> ]? | <qamount_HUH> ] }
     token line_comment  { <comment> \v | <block_comment> }
-    token step_comment  { <comment> \v? | <block_comment> }
-    token comment       { <!after '-'> <!before '---'> '--'  <( \V* )> }
+    token step_comment  { <comment> | <block_comment> }
+    token comment       { <!after '-'> '--' <!before '-' > <( \V* )> }
     token block_comment { '[-'  ~  '-]'   .*? }
     token meta_key      { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
     token item_text     { [ <!before <step_item> | '{' > \V ]+ }  # except for '{' and <step_item>
-    token item_word     { [ <!before '{'> [ \w | '🧂'] ]+ }  # except for whitespace and <step_item>
-    token step_text     { [ <!before <step_item>> \V ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
+ #  token item_word     { [ ^ { \s \p{P} }]+ }  # except for '{', whitespace, punctuation
+    token item_word     { <-[{\s] - :P>+ }  # except for '{', whitespace, punctuation (Unicode P*)
+    token step_text     { [ <!before <step_item>> [ <non_metadata_group> | \V ] ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
     token number        { <number_part> [\s+ <reci> ] ? | <reci>  }
     rule  reci          { <intval> '/' <intval> }
     token intval        { <[1..9.]><[0..9]>* }
@@ -41,7 +43,7 @@ grammar Recipe {
     token qanote        { [ <!before [             '}'] > . ]+ }
     token qamount_HUH   { [ <!before [             '}'] > . ]* }
     token hspace        { \h }
-    token vertical      { \v }
+    token vertical      { \v [ \h+ <?before \v> ]? }  # a whitespace-only line counts as blank
 #   Note \h is horisontal white space. ie. \s - \v
 #   Note \v includes:
 #     U+000A LINE FEED
@@ -57,14 +59,7 @@ role CookBase does Associative {
     has $.type = self.^name.subst("Cooklang::","").lc;
     has $.orig ;
     has $.name ;
-#   submethod BUILD {  # Notice this may prevent value input
-#     # say "Build Cookbase: " ~ self.^name ~~ /::/ ? $/.tail;
-#     # say "Build Cookbase: " ~ $!type;
-#   }
-#   multi submethod gist(CookBase:U) { "<todo>" }
-#   multi submethod gist(CookBase:D) { .orig }
-#   multi submethod gist(Any:D) { .orig }
-#   submethod gist { $!orig }
+    # Do not use submethod BUILD { } as that may prevent value input
     submethod gist (--> Str:D) {
        return self.orig;
     }
@@ -161,10 +156,8 @@ class Comment does CookBase {
     }
 }
 class Cookware does CookBase does CookMeasurement {
-   # NO units
-#   submethod BUILD {  # Notice this may prevent value input
-#     $!units = Nil;
-#   }
+    # NO units
+    # Do not use submethod BUILD { } as that may prevent value input
     submethod TWEAK() {
         self.measurement.quantity //= 1;
     }
@@ -237,7 +230,8 @@ class RecipeActions {
         make @res;
     }
     method step_text ($/) {
-        make Step.new( type => 'text', value => ~$/, orig => ~$/ );
+        my $txt = ~$/.subst(/\n/, ' ', :g);
+        make Step.new( type => 'text', value => $txt, orig => $txt );
     }
     method vertical ($/) {
         @.parts.push: Vertical.new( type => 'text', value => ~$/, orig => ~$/ )  if $/;
@@ -247,11 +241,11 @@ class RecipeActions {
         my %res;
 	for %res<measurement> {
 	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
-	    say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
+	#   say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
         # qamount and quantity at the same time - One has to go
             #.quantity //= 1*$!factor;
             .quantity //= "some";
-	    say "Ingredient { $/ } : quantity now: { .quantity.raku }";
+	    # say "Ingredient { $/ } : quantity now: { .quantity.raku }";
             .number   //= 1*$!factor;
             .modifier = ~$/<modifier>  if $/<modifier>;
         }
@@ -264,8 +258,8 @@ class RecipeActions {
         return   unless $/;
         my %res;
 	for %res<measurement> {
-	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( );
-	    $_ = $_.clone( units => $/<qamount>:exists ?? Nil !! "" );
+	    # Cookware has no units (see spec tests/README.md)
+	    $_ = $/<qamount> && $/<qamount>.made.clone( units => Nil ) // Measurement.new( units => Nil );
 	}
         %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
         %res<orig> = ~$/;
@@ -304,7 +298,9 @@ say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
            $num_str ~~ /^<[0..9.]>/ && try { # Make quantity numeric (if possible), no zero prefix
                die if $num_str ~~ /^0\d/; # spec rule
                die if $num_str ~~ /<[-]>/; # range
-               (0+$num_str)*$factor
+               my $n = $num_str.Numeric;  # Failure for e.g. "7 k"
+               die unless $n.defined;     # .defined marks the Failure as handled
+               $n * $factor
            } //
         # $q_nosp ~~ /^([1-9]\d*)-(([1-9]\d*)$/ ?? try { [$1,$2].map{* * $.factor}.join("-") } //
            $num_str ~~  /^(<[0..9.]>+)\s*"-"\s*(<[0..9.]>+)$/ && try { # Make quantity range numeric (if possible), and back to range string TODO? no zero prefix
@@ -314,8 +310,9 @@ say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
            $num_str ~ ($factor != 1 ?? " * {$factor}" !! "");  # Otherwise use trimmed text (but add factor if present)
 
       # say "Measurement {$/} * { $.factor } = {$res.raku}";
-	if ( $num ~~ Str && $num_str.subst(" "," ") && try { [+] $num_str.split(/\s+/).map(0+*) } ) {
-            $num = $_;
+        # Mixed number like "1 1/2" becomes 1.5
+        if $num ~~ Str && $num_str.words > 1 && $num_str.words.all ~~ /^ <[0..9]>+ [ <[./]> <[0..9]>+ ]? $/ {
+            $num = ([+] $num_str.words.map(*.Numeric)) * $factor;
         }
       # if ( $num ~~ Real && ~$num eq $num_str ) {
         if ( $num ~~ Real ) {
@@ -337,27 +334,27 @@ say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
     method metadata ($/) {
 say "Processing metadata " ~ ~$/;
     }
-    method metadata_group ($/) {
-        my %res;
-say "Processing metadata_group " ~ ~$/;
-        # TODO
-#for %res<metadata_group_line> {
-#           #  %res<meta_key>   = ~$/<meta_key>.trim;
-#           #  %res<meta_value> = ~$/<meta_value>.trim;
-#    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
-#    say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
-#       # qamount and quantity at the same time - One has to go
-#           #.quantity //= 1*$!factor;
-#           .quantity //= "some";
-#    say "Ingredient { $/ } : quantity now: { .quantity.raku }";
-      #     .number   //= 1*$!factor;
-      #     .modifier = ~$/<modifier>  if $/<modifier>;
-      # }
-      # %res<orig> = ~$/;
-      # push @.parts, Metadata.new( |%res );
-    }
+#    method metadata_group ($/) {
+#        my %res;
+#say "Processing metadata_group " ~ ~$/;
+#        # TODO
+##for %res<metadata_group_line> {
+##           #  %res<meta_key>   = ~$/<meta_key>.trim;
+##           #  %res<meta_value> = ~$/<meta_value>.trim;
+##    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
+##    say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
+##       # qamount and quantity at the same time - One has to go
+##           #.quantity //= 1*$!factor;
+##           .quantity //= "some";
+##    say "Ingredient { $/ } : quantity now: { .quantity.raku }";
+#      #     .number   //= 1*$!factor;
+#      #     .modifier = ~$/<modifier>  if $/<modifier>;
+#      # }
+#      # %res<orig> = ~$/;
+#      # push @.parts, Metadata.new( |%res );
+#    }
     method metadata_line ($/) {
-say "Processing metadata_line " ~ ~$/;
+#say "Processing metadata_line " ~ ~$/;
         my %res;
         %res<meta_key>   = ~$/<meta_key>.trim;
         %res<meta_value> = ~$/<meta_value>.trim;
@@ -365,7 +362,7 @@ say "Processing metadata_line " ~ ~$/;
         push @.parts, Metadata.new( |%res );
     }
     method metadata_group_line ($/) {
-say "Processing metadata_group_line { (~$/).raku }";
+#say "Processing metadata_group_line { (~$/).raku }";
         my %res;
         %res<meta_key>   = ~$/<meta_key>.trim;
         %res<meta_value> = ~$/<meta_value>.trim;
@@ -412,18 +409,33 @@ submethod parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type? ) {
     return Empty  unless $!match && $!match.made;
     my @list = $!match.made;
     @list .= grep( $match );# if $match;#   if $type.^name ne 'Any';
-    @list = join-by(@list, $join-by)   if $join-by;
     @list = split-by(@list, $split-by)   if $split-by.^name ne 'Cooklang::CookBase';
+    @list = join-by(@list, $join-by)   if $join-by;
     @list = apply-data-type( @list, $data-type )   if $data-type;
     return @list;
 }
 
+# Split into paragraphs (steps) separated by an empty line.
+# A single line break within a paragraph becomes a space,
+# unless the line ends with a backslash, which forces a line break.
 sub split-by( @list-in, CookBase $split-by ) {
     my @list-out;
-    my $add-line = True;
+    my $breaks = 0;
     for @list-in -> $p {
-        if $p ~~ $split-by { $add-line = True; next; }
-        if $add-line { @list-out.push: []; $add-line = False; }
+        if $p ~~ $split-by { $breaks++; next; }
+        if !@list-out || $breaks >= 2 {
+            @list-out.push: [];
+        }
+        elsif $breaks == 1 {
+            my $last = @list-out[*-1][*-1];
+            my $sep = ' ';
+            if $last ~~ Step && $last.value ~~ / '\\' \h* $ / {
+                @list-out[*-1][*-1] = $last.clone( value => $last.value.subst(/ '\\' \h* $ /, ''), orig => $last.orig );
+                $sep = "\n";
+            }
+            @list-out[*-1].push: Step.new( type => 'text', value => $sep, orig => $sep );
+        }
+        $breaks = 0;
         @list-out[*-1].push: $p;
     }
     return @list-out;

@@ -1,6 +1,5 @@
 lib/Cooklang.rakumod.*
-.precomp/*
-lib/.precomp/*
+.precomp/
 INSTALL
 set_version
 .prove

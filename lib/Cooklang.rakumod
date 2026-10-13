@@ -298,9 +298,10 @@ say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
            $num_str ~~ /^<[0..9.]>/ && try { # Make quantity numeric (if possible), no zero prefix
                die if $num_str ~~ /^0\d/; # spec rule
                die if $num_str ~~ /<[-]>/; # range
-               my $n = $num_str.Numeric;  # Failure for e.g. "7 k"
-               die unless $n.defined;     # .defined marks the Failure as handled
-               $n * $factor
+               # val() returns a plain Str (no Failure) for non-numbers like "7 k"
+               my $n = val($num_str);
+               die unless $n ~~ Numeric;
+               $n.Numeric * $factor
            } //
         # $q_nosp ~~ /^([1-9]\d*)-(([1-9]\d*)$/ ?? try { [$1,$2].map{* * $.factor}.join("-") } //
            $num_str ~~  /^(<[0..9.]>+)\s*"-"\s*(<[0..9.]>+)$/ && try { # Make quantity range numeric (if possible), and back to range string TODO? no zero prefix

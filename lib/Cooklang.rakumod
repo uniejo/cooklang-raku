@@ -106,24 +106,21 @@ class Measurement is CookBase {
     has $.units is rw;
     has $.modifier is rw;
     submethod pluralis {
-	return self.qamount.defined && self.qamount.Int != 1;
+        my $n = self.number;
+        return $n ~~ Real && $n != 1;
     }
     submethod human ( $item? is copy ) {
         return Empty  unless self.quantity || self.units || self.modifier || $item;
 	my $quantity = self.quantity;
 	# Singular/pluralis of $item
-say "Item is : { $item.raku } ({ $item.^name })";
-say "Quantity is : { $quantity.raku } ({ $quantity.^name })";
-say "Qamount is : { self.qamount.raku } ({ self.qamount.^name })";
-say "Units is : { self.units.raku } ({ self.units.^name })";
 	if ( self.pluralis ) {
             # Pluralis
-            $item.=subst(/$/, "s") if $item ~~ Str;
+            $item.=subst(/$/, "s") if $item;
         }
 	else {
             # Signular (or default a/an)
-            $item.=subst(/s$/, "") if $item ~~ Str;
-	    $quantity ||= $item ~~ /^[aeiouy]/ ?? 'an' !! 'a'  if $item ~~ Str;
+            $item.=subst(/s$/, "") if $item;
+	    $quantity ||= $item ~~ /^[aeiouy]/ ?? 'an' !! 'a'  if $item;
         }
 	# Use quantity 'a' or 'an' when no quantity given
         my @qparts =
@@ -247,10 +244,9 @@ class RecipeActions {
             .quantity //= "some";
 	    # say "Ingredient { $/ } : quantity now: { .quantity.raku }";
             .number   //= 1*$!factor;
-            .modifier = ~$/<modifier>  if $/<modifier>;
         }
         %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
-        %res<qanote> = ~$/<qanote>  if $/<qanote>;
+        %res<note> = ~$/<qamount><qanote>.trim  if $/<qamount> && $/<qamount><qanote>;
         %res<orig> = ~$/;
         make Ingredient.new( |%res );
     }
@@ -277,7 +273,6 @@ class RecipeActions {
     }
     method qamount ($/) {
         my %res;
-say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
         %res<quantity> = $/<quantity>.made  if $/<quantity>;
         %res<units>    = $/<units> && $/<units>.made // "";
         %res<modifier> = $/<modifier>.made if $/<modifier>;
@@ -333,7 +328,6 @@ say "Got qamount_HUH : { $/<qamount_HUH> }" if $/<qamount_HUH>;
 	make ~$/.trim  if $/ && ~$/ ne '';
     }
     method metadata ($/) {
-say "Processing metadata " ~ ~$/;
     }
 #    method metadata_group ($/) {
 #        my %res;
@@ -378,19 +372,34 @@ say "Processing metadata " ~ ~$/;
     }
 }
 
+# The constructor resets $!recipe after trigger-recipe_file has run, so load it again here
+submethod TWEAK {
+    self!load-recipe_file  if $!recipe_file.defined && !$!recipe.defined;
+}
+
 # Read recipe from file (or list of files)
 method trigger-recipe_file ($recipe_file) {
-    $!recipe = [$recipe_file]>>.map(*.IO.slurp).join("\n\n");
-    $!match = Recipe.parse($!recipe, actions => RecipeActions.new);
+    self!load-recipe_file;
+}
+
+method !load-recipe_file {
+    $!recipe = $!recipe_file.map(*.IO.slurp).join("\n\n");
+    self!parse;
 }
 
 # Recipe text passed directly
 method trigger-recipe ($recipe) {
-    $!match = Recipe.parse($recipe, actions => RecipeActions.new);
+    self!parse;
 }
 
 method trigger-factor ($factor) {
-    $!match = Recipe.parse($!recipe, actions => RecipeActions.new( factor => $factor ) );
+    self!parse;
+}
+
+# (Re)parse the recipe, scaled by the current factor
+method !parse {
+    return  unless $!recipe.defined;
+    $!match = Recipe.parse($!recipe, actions => RecipeActions.new( factor => $!factor // 1 ) );
 }
 
 # Return data
@@ -507,7 +516,7 @@ method steps ( :$data-type = 'spec-data' )  {
 }
 method steps_flat ( :$data-type = 'spec-data' )  {
     return self.parts(
-        type => * ~~ Step|Ingredient|Cookware|Timer,
+        match => * ~~ Step|Ingredient|Cookware|Timer,
         join-by => * ~~ Step, # type 'text'
         data-type => $data-type );
 }

@@ -170,6 +170,14 @@ is-deeply $recipe.ingredients.map({ ( .name, .quantity ) }).List, (('salt', 'som
 is $recipe.steps[0][2]<value>, '{ and stir well} please.', 'Amount: unclosed brace is text';
 is $recipe.cook, $src, 'Amount: cook round-trip';
 
+# '@' starts an ingredient anywhere, also in an email address (spec)
+is-deeply Cooklang.new( recipe => "email me\@example.com\n" ).ingredients».name.List, ('example',), 'Email address: "example" is an ingredient';
+
+# An unclosed '{' is kept as text, not a parse error
+$recipe = Cooklang.new( recipe => "Add \@salt\{1%tsp" );
+is-deeply $recipe.ingredients.map({ ( .name, .quantity ) }).List, (('salt', 'some'),), 'Unclosed brace: item without amount';
+is $recipe.steps[0][2]<value>, '{1%tsp', 'Unclosed brace: rest is text';
+
 # A block comment can span lines (spec EBNF)
 is Cooklang.new( recipe => "A [- one\ntwo -] B\n" ).comments[0].value, "one\ntwo", 'Block comment across lines';
 

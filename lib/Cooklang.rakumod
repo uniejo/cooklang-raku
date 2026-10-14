@@ -39,6 +39,7 @@ grammar Recipe {
     token meta_value      { \V+ }        # Rest of the line
 
     # @ingredient, #cookware and ~timer: a single word, or several words ended by {amount}
+    # Note: '@' starts an ingredient anywhere in the text, so 'me@example.com' gives ingredient 'example' (as the spec says)
     token ingredient      { '@' <optional>? <!before \h> [ <item_text> <qamount> | <item_word> ] }
     token cookware        { '#' <optional>? <!before \h> [ <item_text> <qamount> | <item_word> ] }
     token timer           { '~'             <!before \h> [ <item_text>? <qamount> | <item_word> ] }
@@ -49,6 +50,7 @@ grammar Recipe {
     # {quantity%units//modifier;note}: every part is optional and ends where a later part starts,
     # and an amount is on one line (\V).
     # A quantity starting with '=' is fixed: it is not scaled, e.g. {=1%tsp}
+    # An unclosed '{' is not an error: the item ends before it, and the rest is text
     token qamount         { '{' ~ '}' [ <fixed>? <quantity> [ '%' <units> ]? [ '//' <modifier> ]? [ ';' <qanote> ]? ] }
     token fixed           { \h* '=' }
     token quantity        { [ <!before '%' | '//' | ';' | '}'> \V ]* }

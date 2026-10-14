@@ -1,7 +1,8 @@
 {
   "auth": "zef:uniejo",
   "depends": [
-    "AttrX::Mooish"
+    "AttrX::Mooish",
+    "YAMLish"
   ],
   "description": "A raku variant of Cooklang",
   "name": "Cooklang",
@@ -9,8 +10,6 @@
     "Cooklang": "lib/Cooklang.rakumod"
   },
   "resources": [],
-  "test-depends": [
-    "YAMLish"
-  ],
+  "test-depends": [],
   "version": "2.0.1"
 }

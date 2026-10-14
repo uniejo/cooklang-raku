@@ -1,5 +1,6 @@
 unit class Cooklang:ver<2.0.1>:auth<zef:uniejo>;
 use AttrX::Mooish;
+use YAMLish;
 
 class ParseError is Exception {
     has $.line;
@@ -21,11 +22,11 @@ grammar Recipe {
     token step_text       { [ <!before <step_item>> \V ]+ }  # Text up to the next item or line break
     token vertical        { \v [ \h+ <?before \v> ]? }      # A whitespace-only line counts as blank
 
-    # Metadata: '>> key: value' lines, or a front matter block at the very start (^) of the recipe
+    # Metadata: '>> key: value' lines, or a YAML front matter block at the very start (^) of the recipe
     token metadata        { <metadata_line> | <metadata_group> }
     rule  metadata_line   { '>>' <meta_key> ':' <meta_value> \v }
-    rule  metadata_group  { ^ <metadata_open> <metadata_group_line>* <metadata_close> }
-    rule  metadata_group_line { <meta_key> ':' <meta_value> \v }
+    token metadata_group  { ^ <metadata_open> <metadata_body> <metadata_close> <?{ front-matter(~$<metadata_body>).defined }> }
+    token metadata_body   { [ <!before '---'> \V* \v ]* }
     token metadata_open   { '---' \h* \v }
     token metadata_close  { '---' \h* }
     token meta_key        { <-[:\v]>+ }  # Up to ':' on the same line
@@ -202,10 +203,37 @@ class MetadataMarker does CookBase {
 }
 class Metadata does CookBase {
     has $.meta_key;
-    has $.meta_value;
+    has $.meta_value;  # Str, or any YAML value (number, Bool, list, map) from front matter
     method human (--> Str:D) {
-        return "( {self.meta_key} {self.meta_value} )";
+        my $value = do given self.meta_value {
+            when Associative { .sort(*.key).map({ "{.key}: {.value}" }).join(', ') }
+            when Positional  { .join(', ') }
+            default          { ~$_ }
+        };
+        return "( {self.meta_key} $value )";
     }
+}
+
+# Parse the body of a front matter block into a list of key => value pairs
+# (in the order they appear), or Nil if it is not metadata.
+# The body is YAML, but plain 'key: value' lines that YAML does not accept,
+# like 'cooking time    :30 mins' (spec) or 'notes:', are also allowed.
+sub front-matter ( Str $body ) {
+    return ()  if $body !~~ / \S /;
+    with load-yaml($body) -> $yaml {
+        # YAMLish nests the next key under a key without a value ('notes:'),
+        # so only trust the result if every key at the start of a line is a top-level key
+        my @keys = $body.lines.map({ ~$0 if / ^ (<-[\s#'"-]> <-[:]>*?) \h* ':' [ \s | $ ] / });
+        return $yaml.pairs.sort({ $body.index(~.key) // Inf }).List
+            if $yaml ~~ Associative && !@keys.first({ $yaml{$_}:!exists });
+    }
+    my @pairs;
+    for $body.lines.grep(/ \S /) {
+        next  if / ^ \h* '#' /;  # YAML comment
+        return Nil  unless / ^ \h* (<-[:]>+?) \h* ':' \h* (\V*) $ /;
+        @pairs.push: ~$0 => (~$1).trim;
+    }
+    return @pairs.List;
 }
 
 # Comment text without the '--' or '[- -]' delimiters
@@ -330,13 +358,11 @@ class RecipeActions {
             orig       => ~$/,
         );
     }
-    method metadata_group_line ($/) {
-        self.metadata_line($/);
-    }
     method metadata_group ($/) {
+        my $body = ~$/<metadata_body>;
         make [
-            MetadataMarker.new( orig => ~$/<metadata_open> ),
-            |$/<metadata_group_line>».made,
+            MetadataMarker.new( orig => ~$/<metadata_open> ~ $body ),
+            |front-matter($body).map({ Metadata.new( meta_key => .key, meta_value => .value, orig => "" ) }),
             MetadataMarker.new( orig => ~$/<metadata_close> ),
         ];
     }

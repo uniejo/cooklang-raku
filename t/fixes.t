@@ -112,6 +112,36 @@ $recipe = Cooklang.new( recipe => $src );
 is-deeply $recipe.metadata, %(), 'Front matter: no partial metadata';
 is $recipe.cook, $src, 'Front matter: cook round-trip';
 
+# Front matter is YAML
+$src = q:to/END/;
+---
+title: Pancakes
+servings: 4
+# a comment
+tags: [breakfast, sweet]
+equipment:
+  - pan
+  - whisk
+nutrition:
+  kcal: 300
+---
+Mix.
+END
+$recipe = Cooklang.new( recipe => $src );
+is-deeply $recipe.metadata,
+    %( title => 'Pancakes', servings => 4, tags => ['breakfast', 'sweet'],
+       equipment => ['pan', 'whisk'], nutrition => { kcal => 300 } ),
+    'YAML front matter: lists, maps and numbers';
+is-deeply $recipe.parts.grep(Cooklang::Metadata)».meta_key.List,
+    <title servings tags equipment nutrition>, 'YAML front matter: keys in source order';
+is $recipe.cook, $src, 'YAML front matter: cook round-trip';
+like $recipe.human, /'( tags breakfast, sweet )'/, 'YAML front matter: human() joins lists';
+
+# Front matter that YAML does not accept, but is simple 'key: value' lines
+is-deeply Cooklang.new( recipe => "---\nnotes:\ntitle: X\n---\n" ).metadata,
+    %( notes => '', title => 'X' ), 'Front matter: key without a value';
+is-deeply Cooklang.new( recipe => "---\n---\nStep.\n" ).metadata, %(), 'Front matter: empty block';
+
 # Parse errors are reported
 my $e = Cooklang::ParseError.new( line => 3, near => '@x' );
 isa-ok $e, Exception, 'ParseError is an Exception';

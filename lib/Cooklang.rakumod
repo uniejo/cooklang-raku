@@ -1,43 +1,58 @@
 unit class Cooklang:ver<2.0.1>:auth<zef:uniejo>;
 use AttrX::Mooish;
 
+class ParseError is Exception {
+    has $.line;
+    has $.near;
+    method message { "Unable to parse recipe at line $!line near '$!near'" }
+}
+
 has $.recipe_file  is rw  is mooish(:trigger);
 has $.recipe       is rw  is mooish(:trigger);
 has $.factor       is rw  is mooish(:trigger) = 1;
 has $.match        is rw;
 
 grammar Recipe {
-    rule TOP            { <line>+ }
-    token ws            { <!ww> \h* }  # rule can have ws between all parts
-    token line          { [ <metadata> | <line_comment> | <step>+ | <vertical> ] <vertical>? }
-    token step          { <step_item> | <step_text> }
-    token step_item     { <ingredient> | <cookware> | <timer> | <step_comment> }
-    token metadata      { <metadata_line> | <metadata_group> }
-    rule  metadata_group { :m ^ '---' \h* \v  ~  '---'   <metadata_group_line>* }
-    rule  metadata_line  {      '>>'  <meta_key> ':' <meta_value> \v }
+    rule  TOP             { <line>* }
+    token ws              { <!ww> \h* }  # A rule only skips horizontal space (not line breaks)
+    token line            { [ <metadata> | <line_comment> | <step>+ | <vertical> ] <vertical>? }
+    token step            { <step_item> | <step_text> }
+    token step_item       { <ingredient> | <cookware> | <timer> | <step_comment> }
+    token step_text       { [ <!before <step_item>> \V ]+ }  # Text up to the next item or line break
+    token vertical        { \v [ \h+ <?before \v> ]? }      # A whitespace-only line counts as blank
+
+    # Metadata: '>> key: value' lines, or a front matter block at the very start (^) of the recipe
+    token metadata        { <metadata_line> | <metadata_group> }
+    rule  metadata_line   { '>>' <meta_key> ':' <meta_value> \v }
+    rule  metadata_group  { ^ <metadata_open> <metadata_group_line>* <metadata_close> }
     rule  metadata_group_line { <meta_key> ':' <meta_value> \v }
-    rule  non_metadata_group { '---' \h* \v  ~  '---'  .*? }
-    token ingredient    { '@' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
-    token cookware      { '#' <!before \h>  [ <item_text> <qamount> | <item_word> ]  }
-    token timer         { '~' <!before \h>  [ <item_text>? <qamount> | <item_word> ] }
-    token qamount       { '{'  ~  '}'   [ [ <quantity> [ '%' <units> ]? ]? [ '//' <modifier> ]? [ ';' <qanote> ]? | <qamount_HUH> ] }
-    token line_comment  { <comment> \v | <block_comment> }
-    token step_comment  { <comment> | <block_comment> }
-    token comment       { <!after '-'> '--' <!before '-' > <( \V* )> }
-    token block_comment { '[-'  ~  '-]'   .*? }
-    token meta_key      { <- [\:] >+ }    # except for ':'
-    token meta_value    { \V+ }           # except for vertical space (new line)
-    token item_text     { [ <!before <step_item> | '{' > \V ]+ }  # except for '{' and <step_item>
-    token item_word     { <-[{\s] - :P>+ }  # except for '{', whitespace, punctuation (Unicode P*)
-    token step_text     { [ <!before <step_item>> [ <non_metadata_group> | \V ] ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
-    token quantity      { <quant_text>  }
-    token quant_text    { [ <!before ['%'|'//'|';'|'}'] > . ]* }
-    token units         { [ <!before [    '//'|';'|'}'] > . ]+ }
-    token modifier      { [ <!before [         ';'|'}'] > . ]+ }
-    token qanote        { [ <!before [             '}'] > . ]+ }
-    token qamount_HUH   { [ <!before [             '}'] > . ]* }
-    token vertical      { \v [ \h+ <?before \v> ]? }  # a whitespace-only line counts as blank
-#   Note \h is horisontal white space. ie. \s - \v
+    token metadata_open   { '---' \h* \v }
+    token metadata_close  { '---' \h* }
+    token meta_key        { <-[:\v]>+ }  # Up to ':' on the same line
+    token meta_value      { \V+ }        # Rest of the line
+
+    # @ingredient, #cookware and ~timer: a single word, or several words ended by {amount}
+    token ingredient      { '@' <optional>? <!before \h> [ <item_text> <qamount> | <item_word> ] }
+    token cookware        { '#' <optional>? <!before \h> [ <item_text> <qamount> | <item_word> ] }
+    token timer           { '~'             <!before \h> [ <item_text>? <qamount> | <item_word> ] }
+    token optional        { '?' }  # Only the first '?' is the marker, '@??x{}' is ingredient '?x'
+    token item_text       { [ <!before '{' | <step_item>> \V ]+ }  # Up to '{' (or the next item)
+    token item_word       { <-[\s] - :P>+ }                         # Up to whitespace or punctuation (Unicode P*)
+
+    # {quantity%units//modifier;note}: every part is optional and ends where a later part starts
+    token qamount         { '{' ~ '}' [ <quantity> [ '%' <units> ]? [ '//' <modifier> ]? [ ';' <qanote> ]? ] }
+    token quantity        { [ <!before '%' | '//' | ';' | '}'> . ]* }
+    token units           { [ <!before       '//' | ';' | '}'> . ]+ }
+    token modifier        { [ <!before              ';' | '}'> . ]+ }
+    token qanote          { [ <!before                    '}'> . ]+ }
+
+    # Comments: '-- to end of line' or '[- block -]'
+    token line_comment    { <comment> \v | <block_comment> }
+    token step_comment    { <comment> | <block_comment> }
+    token comment         { <!after '-'> '--' <!before '-'> <( \V* )> }  # Not part of '---'
+    token block_comment   { '[-' ~ '-]' [ <!before '-]'> . ]* }
+
+#   Note \h is horizontal white space. ie. \s - \v
 #   Note \v includes:
 #     U+000A LINE FEED
 #     U+000B VERTICAL TABULATION
@@ -53,16 +68,16 @@ role CookBase does Associative {
     has $.orig ;
     has $.name ;
     # Do not use submethod BUILD { } as that may prevent value input
-    submethod gist (--> Str:D) {
+    method gist (--> Str:D) {
        return self.orig;
     }
-    submethod cook (--> Str:D) {
+    method cook (--> Str:D) {
        return self.orig;
     }
-    submethod human (--> Str:D) {
+    method human (--> Str:D) {
        return self.orig; # By default
     }
-    submethod data {
+    method data {
         my %data;
         for self.^attributes(:local) {
             next unless .has_accessor;
@@ -78,7 +93,7 @@ role CookBase does Associative {
         }
         return %data;
     }
-    submethod spec-data {
+    method spec-data {
         my %data = self.data;
         %data<orig>:delete;
         %data<qamount>:delete;
@@ -91,32 +106,28 @@ role CookBase does Associative {
         return Nil;
     }
 }
-class Measurement is CookBase {
+class Measurement does CookBase {
     has $.quantity is rw; # This may have to go again
     has $.number is rw;
     has $.units is rw;
     has $.modifier is rw;
-    submethod pluralis {
+    method pluralis {
         my $n = self.number;
         return $n ~~ Real && $n != 1;
     }
-    submethod human ( $item? is copy ) {
+    method human ( $item? is copy ) {
         return Empty  unless self.quantity || self.units || self.modifier || $item;
 	my $quantity = self.quantity;
-	# Singular/pluralis of $item
-	if ( self.pluralis ) {
-            # Pluralis
-            $item.=subst(/$/, "s") if $item;
+	# Plural of $item, but only when there are no units ("2 eggs", "2 tsp salt").
+	# The name is never made singular, as the author chose it ("chilli flakes")
+	if self.pluralis {
+            $item ~= "s"  if $item && !self.units && $item !~~ / s $ /;
         }
-	else {
-            # Signular (or default a/an)
-            $item.=subst(/s$/, "") if $item;
-	    $quantity ||= $item ~~ /^[aeiouy]/ ?? 'an' !! 'a'  if $item;
+	elsif $item {
+	    $quantity ||= $item ~~ /^ :i <[aeiou]> / ?? 'an' !! 'a';
         }
-	# Use quantity 'a' or 'an' when no quantity given
         my @qparts =
 	    $quantity // Empty,
-	    # TODO: Pluralis should be next word after quantity
 	    self.units    || Empty,
 	    self.modifier || Empty,
 	    $item || Empty;
@@ -132,62 +143,80 @@ role CookMeasurement {
 }
 class Comment does CookBase {
     has $.value;
-    submethod gist (--> Str:D) {
+    method gist (--> Str:D) {
         return self.orig // self.value;
     }
-    submethod cook (--> Str:D) {
-       # May need to add atribute to tell what comment type it is
-       return "[- { self.value } -]";
+    method cook (--> Str:D) {
+       return self.orig // "[- { self.value } -]";
     }
-    submethod human (--> Str:D) {
+    method human (--> Str:D) {
        return "( { self.value } )";
     }
 }
 class Cookware does CookBase does CookMeasurement {
+    has $.optional;  # True, or undefined (left out of data) when required
     # NO units
     # Do not use submethod BUILD { } as that may prevent value input
     submethod TWEAK() {
         self.measurement.quantity //= 1;
     }
-    submethod human (--> Str:D) {
-        return self.measurement.human(self.name);
+    method human (--> Str:D) {
+        return self.measurement.human(self.name) ~ (self.optional ?? " (optional)" !! "");
     }
 }
 class Ingredient does CookBase does CookMeasurement {
     has $.note;
+    has $.optional;  # True, or undefined (left out of data) when required
     submethod TWEAK() {
         self.measurement.quantity //= "some";
     }
-    submethod human (--> Str:D) {
-        return self.measurement.human(self.name);
+    method human (--> Str:D) {
+        return self.measurement.human(self.name) ~ (self.optional ?? " (optional)" !! "");
     }
 }
 class Timer does CookBase does CookMeasurement {
     submethod TWEAK() {
         self.measurement.quantity //= "";
     }
-    submethod human (--> Str:D) {
+    method human (--> Str:D) {
         return self.measurement.human(self.name);
     }
 }
 class Step does CookBase {
     has $.value;
-    submethod gist (--> Str:D) {
+    method gist (--> Str:D) {
         return self.orig // self.value;
     }
 }
 class Vertical does CookBase {
     has $.value;
-    submethod gist (--> Str:D) {
+    method gist (--> Str:D) {
         return self.orig // self.value;
+    }
+}
+# The '---' lines around a YAML front matter block (kept for cook())
+class MetadataMarker does CookBase {
+    method human (--> Str:D) {
+        return "";
     }
 }
 class Metadata does CookBase {
     has $.meta_key;
     has $.meta_value;
-    submethod human (--> Str:D) {
+    method human (--> Str:D) {
         return "( {self.meta_key} {self.meta_value} )";
     }
+}
+
+# Comment text without the '--' or '[- -]' delimiters
+sub comment-text ($/) {
+    return ~$/<comment>.trim  if $/<comment>;
+    return ~$/<block_comment>.substr(2, *-2).trim;
+}
+
+# A plain number like "2", "1.5", ".5" or "1/2" (not "02", "1-2" or "7 k")
+sub is-number ( Str $s --> Bool ) {
+    return so $s ~~ / ^ <[0..9.]> / && $s !~~ / ^ 0 \d / && !$s.contains('-') && val($s) ~~ Numeric;
 }
 
 class RecipeActions {
@@ -207,7 +236,7 @@ class RecipeActions {
     }
     method step_text ($/) {
         my $txt = ~$/.subst(/\n/, ' ', :g);
-        make Step.new( type => 'text', value => $txt, orig => $txt );
+        make Step.new( type => 'text', value => $txt, orig => ~$/ );
     }
     method vertical ($/) {
         @.parts.push: Vertical.new( type => 'text', value => ~$/, orig => ~$/ )  if $/;
@@ -222,6 +251,7 @@ class RecipeActions {
         }
         %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
         %res<note> = ~$/<qamount><qanote>.trim  if $/<qamount> && $/<qamount><qanote>;
+        %res<optional> = True  if $/<optional>;
         %res<orig> = ~$/;
         make Ingredient.new( |%res );
     }
@@ -233,6 +263,7 @@ class RecipeActions {
 	    $_ = $/<qamount> && $/<qamount>.made.clone( units => Nil ) // Measurement.new( units => Nil );
 	}
         %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
+        %res<optional> = True  if $/<optional>;
         %res<orig> = ~$/;
         make Cookware.new( |%res );
     }
@@ -255,36 +286,29 @@ class RecipeActions {
         self.num_parts( %res<quantity>, %res<number>, $!factor );
 	make Measurement.new( |%res );
     }
-    # TODO: num_parts should be able to handle:
-    # "num_str "1 1/2" is num 1.5
-    # add in factor to num and num_str
-    # (update units if it seems appropiate)
-    submethod num_parts ( $num_str is rw, $num is rw, $factor ) {
-	return unless $num_str.defined;
-	# What if number is several alternative values
-        $num_str ~~ s:g/\s*\/\s*/\//;   # "1 / 2" becomes "1/2" eval to 0.5
-        $num =
-           $num_str ~~ /^\s*$/ && 1 //
-           $num_str ~~ /^<[0..9.]>/ && try { # Make quantity numeric (if possible), no zero prefix
-               die if $num_str ~~ /^0\d/; # spec rule
-               die if $num_str ~~ /<[-]>/; # range
-               # val() returns a plain Str (no Failure) for non-numbers like "7 k"
-               my $n = val($num_str);
-               die unless $n ~~ Numeric;
-               $n.Numeric * $factor
-           } //
-           $num_str ~~  /^(<[0..9.]>+)\s*"-"\s*(<[0..9.]>+)$/ && try { # Make quantity range numeric (if possible), and back to range string TODO? no zero prefix
-	       join ' - ', map { die if /^0\d/; 0+$_*$factor }, $/[0], $/[1];
-           } //
-           $num_str ~ ($factor != 1 ?? " * {$factor}" !! "");  # Otherwise use trimmed text (but add factor if present)
-
-        # Mixed number like "1 1/2" becomes 1.5
-        if $num ~~ Str && $num_str.words > 1 && $num_str.words.all ~~ /^ <[0..9]>+ [ <[./]> <[0..9]>+ ]? $/ {
-            $num = ([+] $num_str.words.map(*.Numeric)) * $factor;
+    # Turn the quantity text into a number, scaled by $factor, when possible:
+    #   "2" -> 2,  "1/2" or "1 / 2" -> 0.5,  "1 1/2" -> 1.5,  "1-2" -> "1 - 2" (range)
+    # Anything else is kept as text, e.g. "a pinch" (with " * factor" when scaled).
+    # A number with a leading zero, like "02", is text (spec).
+    method num_parts ( $num_str is rw, $num is rw, $factor ) {
+        return unless $num_str.defined;
+        $num_str ~~ s:g/ \s* '/' \s* /\//;
+        if $num_str ~~ / ^ \s* $ / {
+            $num = 1;
         }
-        if ( $num ~~ Real ) {
-            $num_str = $num;
+        elsif is-number($num_str) {
+            $num = val($num_str) * $factor;
         }
+        elsif $num_str ~~ / ^ (<[0..9.]>+) \s* '-' \s* (<[0..9.]>+) $ / && is-number(~$0) && is-number(~$1) {
+            $num = ( $0, $1 ).map({ val(~$_) * $factor }).join(' - ');
+        }
+        elsif $num_str.words > 1 && all($num_str.words) ~~ / ^ \d+ [ <[./]> \d+ ]? $ / {
+            $num = ( [+] $num_str.words».Numeric ) * $factor;  # Mixed number
+        }
+        else {
+            $num = $num_str ~ ( $factor != 1 ?? " * $factor" !! "" );
+        }
+        $num_str = $num  if $num ~~ Real;
     }
     method units ($/) {
         make ~$/.trim;
@@ -295,25 +319,32 @@ class RecipeActions {
     method quantity ($/) {
 	make ~$/.trim  if $/ && ~$/ !~~ /^\s*$/;
     }
+    # Metadata is only added when the whole line or front matter block has matched
+    method metadata ($/) {
+        @.parts.push: |( $/<metadata_line> // $/<metadata_group> ).made;
+    }
     method metadata_line ($/) {
-        my %res;
-        %res<meta_key>   = ~$/<meta_key>.trim;
-        %res<meta_value> = ~$/<meta_value>.trim;
-        %res<orig> = ~$/;
-        push @.parts, Metadata.new( |%res );
+        make Metadata.new(
+            meta_key   => ~$/<meta_key>.trim,
+            meta_value => ~$/<meta_value>.trim,
+            orig       => ~$/,
+        );
     }
     method metadata_group_line ($/) {
-        my %res;
-        %res<meta_key>   = ~$/<meta_key>.trim;
-        %res<meta_value> = ~$/<meta_value>.trim;
-        %res<orig> = ~$/;
-        push @.parts, Metadata.new( |%res );
+        self.metadata_line($/);
+    }
+    method metadata_group ($/) {
+        make [
+            MetadataMarker.new( orig => ~$/<metadata_open> ),
+            |$/<metadata_group_line>».made,
+            MetadataMarker.new( orig => ~$/<metadata_close> ),
+        ];
     }
     method line_comment ($/) {
-        push @.parts, Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
+        push @.parts, Comment.new( value => comment-text($/), orig => ~$/ );
     }
     method step_comment ($/) {
-        make          Comment.new( value => ~( $/<comment> // $/<block_comment> ).trim );
+        make          Comment.new( value => comment-text($/), orig => ~$/ );
     }
 }
 
@@ -342,24 +373,34 @@ method trigger-factor ($factor) {
 }
 
 # (Re)parse the recipe, scaled by the current factor
+# Throws ParseError if the recipe can not be parsed
 method !parse {
     return  unless $!recipe.defined;
-    $!match = Recipe.parse($!recipe, actions => RecipeActions.new( factor => $!factor // 1 ) );
+    my $match = Recipe.subparse($!recipe, actions => RecipeActions.new( factor => $!factor // 1 ) );
+    my $pos = $match ?? $match.to !! 0;
+    if $pos < $!recipe.chars {
+        $!match = Nil;
+        ParseError.new(
+            line => $!recipe.substr(0, $pos).lines.elems max 1,
+            near => $!recipe.substr($pos, 20),
+        ).throw;
+    }
+    $!match = $match;
 }
 
 # Return data
 # Note that this removes a bit of info from the raw ast
 # The removed fields are available directly from the object (see methods below).
 method data {
-    return $!match  unless $!match && $!match.made;
+    return $!match  unless $!match;
     my %res;
     %res<metadata> = self.metadata;
     %res<steps> = self.steps;
     return %res;
 }
 
-submethod parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type? ) {
-    return Empty  unless $!match && $!match.made;
+method parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type? ) {
+    return Empty  unless $!match;
     my @list = $!match.made;
     @list .= grep( $match );
     @list = split-by(@list, $split-by)   if $split-by !=:= CookBase;
@@ -492,6 +533,10 @@ Cooklang - C<Raku> C<Cooklang> parser
     my $comments    = $recipe.comments;
     my $data        = $recipe.data;
     my $ast_tree    = $recipe.match;
+    my $source_text = $recipe.cook;     # Same as the original recipe text
+    ...
+    # A recipe that can not be parsed throws Cooklang::ParseError
+    CATCH { when Cooklang::ParseError { note .message } }
 =end code
 
 =end SYNOPSIS
@@ -504,7 +549,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin AVAILABILITY
 
-Cooklang is implemented in C<Raku> using grammer and grammar action to parse and build AST tree.
+Cooklang is implemented in C<Raku> using grammar and grammar action to parse and build AST tree.
 
 =end AVAILABILITY
 

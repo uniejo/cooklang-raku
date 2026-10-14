@@ -1,4 +1,4 @@
-unit class Cooklang:ver<2.0.1>:auth<zef:uniejo>;
+unit class Cooklang:ver<2.1.0>:auth<zef:uniejo>;
 use AttrX::Mooish;
 use YAMLish;
 
@@ -11,6 +11,7 @@ class ParseError is Exception {
 has $.recipe_file  is rw  is mooish(:trigger);
 has $.recipe       is rw  is mooish(:trigger);
 has $.factor       is rw  is mooish(:trigger) = 1;
+has $.servings     is rw  is mooish(:trigger);  # Scale to this many servings
 has $.match        is rw;
 
 grammar Recipe {
@@ -40,8 +41,10 @@ grammar Recipe {
     token item_text       { [ <!before '{' | <step_item>> \V ]+ }  # Up to '{' (or the next item)
     token item_word       { <-[\s] - :P>+ }                         # Up to whitespace or punctuation (Unicode P*)
 
-    # {quantity%units//modifier;note}: every part is optional and ends where a later part starts
-    token qamount         { '{' ~ '}' [ <quantity> [ '%' <units> ]? [ '//' <modifier> ]? [ ';' <qanote> ]? ] }
+    # {quantity%units//modifier;note}: every part is optional and ends where a later part starts.
+    # A quantity starting with '=' is fixed: it is not scaled, e.g. {=1%tsp}
+    token qamount         { '{' ~ '}' [ <fixed>? <quantity> [ '%' <units> ]? [ '//' <modifier> ]? [ ';' <qanote> ]? ] }
+    token fixed           { \h* '=' }
     token quantity        { [ <!before '%' | '//' | ';' | '}'> . ]* }
     token units           { [ <!before       '//' | ';' | '}'> . ]+ }
     token modifier        { [ <!before              ';' | '}'> . ]+ }
@@ -86,7 +89,7 @@ role CookBase does Associative {
             next unless defined $v;
             %data{.name.subst(<$!>,"")}=$v;
         }
-	for <<quantity units modifier>> {
+	for <<quantity units modifier fixed>> {
             next unless self.^can($_);
 	    my $v = self."$_"();
             next unless defined $v;
@@ -112,6 +115,7 @@ class Measurement does CookBase {
     has $.number is rw;
     has $.units is rw;
     has $.modifier is rw;
+    has $.fixed is rw;  # True, or undefined when the quantity is scaled
     method pluralis {
         my $n = self.number;
         return $n ~~ Real && $n != 1;
@@ -141,6 +145,7 @@ role CookMeasurement {
     method number   { self.measurement.?number }
     method units    { self.measurement.?units }
     method modifier { self.measurement.?modifier }
+    method fixed    { self.measurement.?fixed }
 }
 class Comment does CookBase {
     has $.value;
@@ -273,7 +278,7 @@ class RecipeActions {
         return   unless $/;
         my %res;
 	for %res<measurement> {
-	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
+	    $_ = self!measurement( $/, $!factor, units => "" );
             .quantity //= "some";
             .number   //= 1*$!factor;
         }
@@ -287,8 +292,9 @@ class RecipeActions {
         return   unless $/;
         my %res;
 	for %res<measurement> {
-	    # Cookware has no units (see spec tests/README.md)
-	    $_ = $/<qamount> && $/<qamount>.made.clone( units => Nil ) // Measurement.new( units => Nil );
+	    # Cookware has no units (see spec tests/README.md), and is not scaled (spec proposal 0010)
+	    $_ = self!measurement( $/, 1 );
+	    .units = Nil;
 	}
         %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
         %res<optional> = True  if $/<optional>;
@@ -299,7 +305,8 @@ class RecipeActions {
         return    unless $/;
         my %res;
 	for %res<measurement> {
-	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
+	    # Timers are not scaled (spec proposal 0010)
+	    $_ = self!measurement( $/, 1, units => "" );
 	}
         %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
         %res<orig> = ~$/;
@@ -310,9 +317,15 @@ class RecipeActions {
         %res<quantity> = $/<quantity>.made  if $/<quantity>;
         %res<units>    = $/<units> && $/<units>.made // "";
         %res<modifier> = $/<modifier>.made if $/<modifier>;
+        %res<fixed>    = True  if $/<fixed>;
         %res<orig> = ~$/;
-        self.num_parts( %res<quantity>, %res<number>, $!factor );
 	make Measurement.new( |%res );
+    }
+    # The measurement of an item, scaled by $factor unless it is fixed
+    method !measurement ( $/, $factor, *%default --> Measurement ) {
+        my $m = $/<qamount> ?? $/<qamount>.made !! Measurement.new( |%default );
+        self.num_parts( $m.quantity, $m.number, $m.fixed ?? 1 !! $factor );
+        return $m;
     }
     # Turn the quantity text into a number, scaled by $factor, when possible:
     #   "2" -> 2,  "1/2" or "1 / 2" -> 0.5,  "1 1/2" -> 1.5,  "1-2" -> "1 - 2" (range)
@@ -387,11 +400,25 @@ method trigger-recipe_file ($recipe_file) {
 method !load-recipe_file {
     $!recipe = $!recipe_file.map(*.IO.slurp).join("\n\n");
     self!parse;
+    self!scale-to-servings;
 }
 
 # Recipe text passed directly
 method trigger-recipe ($recipe) {
     self!parse;
+    self!scale-to-servings;
+}
+
+method trigger-servings ($servings) {
+    self!scale-to-servings;
+}
+
+# Set the factor from the wanted servings and the recipe's 'servings' metadata.
+# A recipe without 'servings' is for 1 serving (spec proposal 0010).
+method !scale-to-servings {
+    return  unless $!servings.defined && $!match;
+    my $base = ( self.metadata<servings> // 1 ).Str.match(/ <[0..9.]>+ /);  # '2', or old style '2|4|6'
+    self.factor = $!servings / ( $base && +$base ?? +$base !! 1 );
 }
 
 method trigger-factor ($factor) {
@@ -542,25 +569,37 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin code :lang<raku>
     use Cooklang;
-    ...
-    my $source = "some Cooklang text";
-    my $recipe = Cooklang.new( recipe => $source );
-    ...
-    my $file = 'recipe.cook';
-    my $recipe = Cooklang.new( recipe_file => $file );
-    ...
-    my @files = 'recipe1.cook', 'recipe2.cook';
-    my $recipe = Cooklang.new( recipe_file => @files );
-    # Currently does a simple join of all files, before parsing.
-    ...
-    my $metadata    = $recipe.metadata;
-    my $ingredients = $recipe.ingredients;
-    my $steps       = $recipe.steps;
-    my $comments    = $recipe.comments;
-    my $data        = $recipe.data;
-    my $ast_tree    = $recipe.match;
-    my $source_text = $recipe.cook;     # Same as the original recipe text
-    ...
+
+    # Parse a recipe from text, a file, or a list of files (joined before parsing)
+    my $recipe = Cooklang.new( recipe => "Mix @flour{200%g} and @water{1/2%l}.\n" );
+    my $recipe = Cooklang.new( recipe_file => 'recipe.cook' );
+    my $recipe = Cooklang.new( recipe_file => <recipe1.cook recipe2.cook> );
+
+    # Recipe parts
+    my %metadata    = $recipe.metadata;      # Front matter (YAML) and '>> key: value' lines
+    my @ingredients = $recipe.ingredients;   # Cooklang::Ingredient objects
+    my @cookware    = $recipe.cookware;      # Cooklang::Cookware objects
+    my @comments    = $recipe.comments;      # Cooklang::Comment objects
+    my @steps       = $recipe.steps;         # Steps (paragraphs) as lists of hashes
+    my %data        = $recipe.data;          # { metadata => ..., steps => ... } as in the spec tests
+    my $ast_tree    = $recipe.match;         # The grammar match
+
+    # Ingredient details
+    for $recipe.ingredients {
+        say .name, ' ', .quantity, ' ', .units;
+        say .human;                          # "200 g flour"
+        say 'optional' if .optional;         # @?name
+        say 'not scaled' if .fixed;          # @name{=1%tsp}
+    }
+
+    # Scale the recipe
+    $recipe.factor   = 2;                    # Double all scalable quantities
+    $recipe.servings = 4;                    # Scale to 4 servings (relative to the 'servings' metadata)
+
+    # Output
+    say $recipe.human;                       # Readable text
+    say $recipe.cook;                        # The original Cooklang text
+
     # A recipe that can not be parsed throws Cooklang::ParseError
     CATCH { when Cooklang::ParseError { note .message } }
 =end code
@@ -569,19 +608,38 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin VERSION
 
-    version 2.0.1
+    version 2.1.0
 
 =end VERSION
 
-=begin AVAILABILITY
-
-Cooklang is implemented in C<Raku> using grammar and grammar action to parse and build AST tree.
-
-=end AVAILABILITY
-
 =begin DESCRIPTION
-For the C<Cooklang> syntax, see [Cooklang](https://cooklang.org/).
+
+Cooklang is a markup language for recipes, see L<Cooklang|https://cooklang.org/>
+and the L<specification|https://github.com/cooklang/spec>.
+
+This module parses a Cooklang recipe with a C<Raku> grammar and grammar actions,
+and gives access to its metadata, ingredients, cookware, timers, comments and steps.
+The specification tests (C<t/spec>, a git submodule of the specification) are part of the test suite.
+
 =end DESCRIPTION
+
+=begin SUPPORTED-SYNTAX
+
+=item1 Ingredients C<@salt>, C<@ground black pepper{}>, C<@potato{2}>, C<@flour{200%g}>, with an optional note C<@salt{1%tsp;fine}>
+=item1 Cookware C<#pot>, C<#frying pan{}>, C<#pan{2}> (cookware has no units)
+=item1 Timers C<~{25%minutes}>, C<~eggs{3%minutes}>
+=item1 Quantities as numbers C<2>, fractions C<1/2>, mixed numbers C<1 1/2>, ranges C<1-2> or text C<a pinch>
+=item1 Steps: paragraphs separated by a blank line; a single line break is a space, unless the line ends with C<\>
+=item1 Comments C<-- to end of line> and C<[- block -]>
+=item1 Metadata as YAML front matter between C<---> lines, and C<<< >> key: value >>> lines
+=item1 Optional ingredients and cookware C<@?thyme>, C<#?splatter guard{}> (spec proposal 0018)
+=item1 Scaling with C<factor> or C<servings>; fixed quantities C<@salt{=1%tsp}>, cookware and timers are not scaled (spec proposal 0010)
+
+Not supported yet: notes (C<< > text >>), sections (C<= Dough>), short-hand preparations
+(C<@onion{1}(chopped)>) and references to other recipes (C<@./sauces/pesto{}>).
+They are parsed as plain text or as an ordinary ingredient.
+
+=end SUPPORTED-SYNTAX
 
 =begin DOCUMENTATION
 Cooklang documentation is available as C<POD6>.
@@ -610,19 +668,33 @@ If you have zef, you only need one line:
     % zef install https://github.com/uniejo/cooklang-raku.git
 =end code
 
+## Running the tests
+
+The specification tests are in a git submodule:
+
+=begin code
+    % git submodule update --init
+    % prove -e 'raku -Ilib' t
+=end code
+
 =end INSTALLATION
 
 =begin COMMUNITY
 =item1 [Code repository Wiki and Issue Tracker](https://github.com/uniejo/cooklang-raku)
-=item1 [Cooklang on modules.raku.org](https://modules.raku.org/dist/Cooklang:zef:zef:uniejo)
+=item1 [Cooklang on raku.land](https://raku.land/zef:uniejo/Cooklang)
 =end COMMUNITY
+
+=begin SEE-ALSO
+=item1 [Cooklang](https://cooklang.org/) and the [Cooklang specification](https://github.com/cooklang/spec)
+=item1 [Cooklang for Perl](https://metacpan.org/dist/Cooklang) on MetaCPAN
+=end SEE-ALSO
 
 =begin AUTHOR
 Erik Johansen - uniejo@users.noreply.github.com
 =end AUTHOR
 
 =begin COPYRIGHT
-Erik Johansen 2024
+Erik Johansen 2023-2026
 =end COPYRIGHT
 
 =begin LICENSE

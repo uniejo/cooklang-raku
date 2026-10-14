@@ -1,5 +1,17 @@
 Revision history for Cooklang
 
+2.1.0   2026-10-14 12:53:01 Europe/Copenhagen
+ - Align with the current Cooklang spec tests (t/spec submodule)
+ - Optional ingredients and cookware: @?name, #?name
+ - Front matter is parsed as YAML (YAMLish is now a dependency)
+ - Scaling: fixed quantities {=1%tsp}, cookware and timers are not scaled,
+   and new 'servings' attribute to scale to a number of servings
+ - cook() returns the original recipe text
+ - human(): better plurals and a/an, optional items marked
+ - Throw Cooklang::ParseError when a recipe can not be parsed
+ - Fix metadata keys spanning lines, block comment values and Measurement methods
+ - Clearer grammar, more tests and updated documentation
+
 2.0.1   2024-10-29 16:45:00 Europe/Copenhagen
  - Restructure data into objects for better flexibility
 

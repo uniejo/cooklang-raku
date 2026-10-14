@@ -142,6 +142,26 @@ is-deeply Cooklang.new( recipe => "---\nnotes:\ntitle: X\n---\n" ).metadata,
     %( notes => '', title => 'X' ), 'Front matter: key without a value';
 is-deeply Cooklang.new( recipe => "---\n---\nStep.\n" ).metadata, %(), 'Front matter: empty block';
 
+# Scaling (spec proposal 0010): fixed quantities, cookware and timers are not scaled
+$recipe = Cooklang.new( recipe => "Add \@milk\{1/2%cup} and \@salt\{=1%tsp} to #pan\{2}, wait ~\{10%min}.\n", factor => 2 );
+is $recipe.ingredients[0].quantity, 1, 'Scaling: ingredient scaled';
+is $recipe.ingredients[1].quantity, 1, 'Scaling: fixed quantity not scaled';
+ok $recipe.ingredients[1].fixed, 'Scaling: fixed quantity is marked';
+nok $recipe.ingredients[0].fixed, 'Scaling: scaled quantity is not marked';
+is $recipe.cookware[0].quantity, 2, 'Scaling: cookware not scaled';
+is $recipe.parts.first(Cooklang::Timer).quantity, 10, 'Scaling: timer not scaled';
+is $recipe.cook, "Add \@milk\{1/2%cup} and \@salt\{=1%tsp} to #pan\{2}, wait ~\{10%min}.\n", 'Scaling: cook keeps the original';
+
+# Scale to servings, relative to the 'servings' metadata (default 1)
+$src = "---\nservings: 2\n---\nAdd \@milk\{1/2%cup}.\n";
+$recipe = Cooklang.new( recipe => $src, servings => 4 );
+is $recipe.factor, 2, 'Servings: factor from constructor';
+is $recipe.ingredients[0].quantity, 1, 'Servings: quantity scaled';
+$recipe.servings = 1;
+is $recipe.ingredients[0].quantity, 0.25, 'Servings: changed later';
+is Cooklang.new( recipe => "Add \@egg\{1}.\n", servings => 3 ).ingredients[0].quantity, 3, 'Servings: no metadata means 1 serving';
+is Cooklang.new( recipe => "---\nservings: 2|4|6\n---\nAdd \@egg\{1}.\n", servings => 4 ).factor, 2, 'Servings: old style 2|4|6 uses the first';
+
 # Parse errors are reported
 my $e = Cooklang::ParseError.new( line => 3, near => '@x' );
 isa-ok $e, Exception, 'ParseError is an Exception';

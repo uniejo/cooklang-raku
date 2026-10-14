@@ -73,4 +73,29 @@ subtest 'Pesto: >> metadata, ranges, fractions, comments and line breaks' => {
     ), 'factor 2: ranges and fractions scaled';
 }
 
+subtest 'Layer cake: sections and notes' => {
+    my $recipe = recipe('layer_cake');
+    is-deeply $recipe.notes».value.List,
+        ('A family recipe. Best made the day before.', 'Keep the cream cold.'), 'notes, with the ">" of the next lines removed';
+    is $recipe.steps.elems, 4, 'steps (notes and section headers are not steps)';
+    my @sections = $recipe.sections;
+    is-deeply @sections.map({ ( .<name>, .<steps>.elems ) }).List,
+        (('Sponge', 2), ('Filling', 1), (Any, 1)), 'sections: names and number of steps (no empty section before the first)';
+    is $recipe.sections(data-type => 'human')[0]<steps>[0].join,
+        'Beat 4 eggs and 200 g sugar until pale. Fold in 200 g flour.', 'sections: human steps';
+    is-deeply items($recipe.ingredients), (
+        ('eggs', 4, ''), ('sugar', 200, 'g'), ('flour', 200, 'g'), ('cream', 400, 'ml'), ('vanilla', 1, 'tsp'),
+    ), 'ingredients';
+    is $recipe.cookware[0].human, '2 cake tins', 'cookware';
+    like $recipe.human, / ^^ 'Note: A family recipe. Best made the day before.' $$ /, 'human: note';
+    like $recipe.human, / ^^ 'Sponge:' $$ /, 'human: section';
+    is $recipe.cook, 't/data/layer_cake.cook'.IO.slurp, 'cook round-trip';
+
+    # Only at the start of a line, and '>>' is metadata
+    $recipe = Cooklang.new( recipe => ">> key: value\nIf a > b and x == y, stir.\n" );
+    is $recipe.notes.elems, 0, 'not a note: ">>" or ">" inside a line';
+    is $recipe.sections.elems, 1, 'not a section: "==" inside a line';
+    is $recipe.steps[0][0]<value>, 'If a > b and x == y, stir.', 'kept as text';
+}
+
 done-testing;

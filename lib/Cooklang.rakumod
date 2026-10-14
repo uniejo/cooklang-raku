@@ -17,11 +17,16 @@ has $.match        is rw;
 grammar Recipe {
     rule  TOP             { <line>* }
     token ws              { <!ww> \h* }  # A rule only skips horizontal space (not line breaks)
-    token line            { [ <metadata> | <line_comment> | <step>+ | <vertical> ] <vertical>? }
+    token line            { [ <metadata> | <line_comment> | <note> | <section> | <step>+ | <vertical> ] <vertical>? }
     token step            { <step_item> | <step_text> }
     token step_item       { <ingredient> | <cookware> | <timer> | <step_comment> }
     token step_text       { [ <!before <step_item>> \V ]+ }  # Text up to the next item or line break
     token vertical        { \v [ \h+ <?before \v> ]? }      # A whitespace-only line counts as blank
+
+    # Note: a paragraph starting with '>' (a '>' at the start of the next lines is optional)
+    token note            { '>' <!before '>'> \V* [ \v <?before \h* \S> \V+ ]* }
+    # Section: a line like '= Dough' or '== Filling ==' (the name and the closing '=' are optional)
+    token section         { '='+ \h* $<name>=[ [ <!before \h* '='* \h* [ \v | $ ]> \V ]* ] \h* '='* \h* <?before \v | $> }
 
     # Metadata: '>> key: value' lines, or a YAML front matter block at the very start (^) of the recipe
     token metadata        { <metadata_line> | <metadata_group> }
@@ -207,6 +212,19 @@ class Vertical does CookBase {
         return self.orig // self.value;
     }
 }
+# A note: background or a story that is not part of the steps (spec proposal 0005)
+class Note does CookBase {
+    has $.value;
+    method human (--> Str:D) {
+        return "Note: { self.value }";
+    }
+}
+# A section header like '== Dough ==' (spec proposal 0006)
+class Section does CookBase {
+    method human (--> Str:D) {
+        return self.name ?? "{ self.name }:" !! "";
+    }
+}
 # The '---' lines around a YAML front matter block (kept for cook())
 class MetadataMarker does CookBase {
     method human (--> Str:D) {
@@ -388,6 +406,14 @@ class RecipeActions {
             MetadataMarker.new( orig => ~$/<metadata_close> ),
         ];
     }
+    method note ($/) {
+        my $text = ~$/;
+        my $value = $text.lines.map({ .subst(/ ^ \h* '>' /, '').trim }).grep(*.chars).join(' ');
+        push @.parts, Note.new( value => $value, orig => $text );
+    }
+    method section ($/) {
+        push @.parts, Section.new( name => ~$/<name>.trim || Nil, orig => ~$/ );
+    }
     method line_comment ($/) {
         push @.parts, Comment.new( value => comment-text($/), orig => ~$/ );
     }
@@ -461,9 +487,10 @@ method data {
     return %res;
 }
 
-method parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type? ) {
+# The recipe parts (or the parts in $from), filtered and grouped
+method parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type?, :$from ) {
     return Empty  unless $!match;
-    my @list = $!match.made;
+    my @list = $from.defined ?? @$from !! $!match.made;
     @list .= grep( $match );
     @list = split-by(@list, $split-by)   if $split-by !=:= CookBase;
     @list = join-by(@list, $join-by)   if $join-by;
@@ -545,12 +572,25 @@ sub apply-data-type ( @list, $data-type ) {
 method ingredients { return self.parts.grep( * ~~ Ingredient ) }
 method cookware    { return self.parts.grep( * ~~ Cookware ) }
 method comments    { return self.parts.grep( * ~~ Comment ) }
-method steps ( :$data-type = 'spec-data' )  {
+method notes       { return self.parts.grep( * ~~ Note ) }
+method steps ( :$data-type = 'spec-data', :$from )  {
     return self.parts(
         match => * ~~ Step|Ingredient|Cookware|Timer|Vertical,
         join-by => * ~~ Step, # type 'text'
         split-by => Vertical,
-        data-type => $data-type );
+        data-type => $data-type,
+        :$from );
+}
+# The steps grouped by section: [ { name => 'Dough', steps => [...] }, ... ]
+# Steps before the first section header are in a section without a name.
+method sections ( :$data-type = 'spec-data' ) {
+    my @sections = %( name => Nil, parts => [] ),;
+    for self.parts {
+        when Section { @sections.push: %( name => .name, parts => [] ) }
+        default      { @sections[*-1]<parts>.push: $_ }
+    }
+    @sections.shift  unless @sections[0]<parts>.first(Step|Ingredient|Cookware|Timer);
+    return @sections.map({ %( name => .<name>, steps => self.steps( :$data-type, from => .<parts> ) ) }).Array;
 }
 method steps_flat ( :$data-type = 'spec-data' )  {
     return self.parts(
@@ -590,6 +630,8 @@ Cooklang - C<Raku> C<Cooklang> parser
     my @cookware    = $recipe.cookware;      # Cooklang::Cookware objects
     my @comments    = $recipe.comments;      # Cooklang::Comment objects
     my @steps       = $recipe.steps;         # Steps (paragraphs) as lists of hashes
+    my @sections    = $recipe.sections;      # Steps grouped by section: { name => ..., steps => [...] }
+    my @notes       = $recipe.notes;         # Cooklang::Note objects
     my %data        = $recipe.data;          # { metadata => ..., steps => ... } as in the spec tests
     my $ast_tree    = $recipe.match;         # The grammar match
 
@@ -643,9 +685,11 @@ The specification tests (C<t/spec>, a git submodule of the specification) are pa
 =item1 Metadata as YAML front matter between C<---> lines, and C<<< >> key: value >>> lines
 =item1 Optional ingredients and cookware C<@?thyme>, C<#?splatter guard{}> (spec proposal 0018)
 =item1 Scaling with C<factor> or C<servings>; fixed quantities C<@salt{=1%tsp}>, cookware and timers are not scaled (spec proposal 0010)
+=item1 Notes: a paragraph starting with C<< > >> (spec proposal 0005)
+=item1 Sections C<= Dough>, C<== Filling ==> (spec proposal 0006)
 
-Not supported yet: notes (C<< > text >>), sections (C<= Dough>), short-hand preparations
-(C<@onion{1}(chopped)>) and references to other recipes (C<@./sauces/pesto{}>).
+Not supported yet: short-hand preparations (C<@onion{1}(chopped)>)
+and references to other recipes (C<@./sauces/pesto{}>).
 They are parsed as plain text or as an ordinary ingredient.
 
 =end SUPPORTED-SYNTAX

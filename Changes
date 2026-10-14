@@ -12,6 +12,8 @@ Revision history for Cooklang
  - Fix metadata keys spanning lines, block comment values and Measurement methods
  - Ranges like {2-3} are scaled at both ends; whole numbers are shown as 8, not 8.0
  - human() leaves out the '\' that marks a line break
+ - Notes ('> text') and sections ('== Dough =='), with new notes() and sections() methods
+ - human(): cookware without a given quantity is shown without one, one line per metadata
  - Tests with the spec example recipes and made-up recipes using all features
  - Clearer grammar, more tests and updated documentation
 

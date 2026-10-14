@@ -20,6 +20,8 @@ SYNOPSIS
     my @cookware    = $recipe.cookware;      # Cooklang::Cookware objects
     my @comments    = $recipe.comments;      # Cooklang::Comment objects
     my @steps       = $recipe.steps;         # Steps (paragraphs) as lists of hashes
+    my @sections    = $recipe.sections;      # Steps grouped by section: { name => ..., steps => [...] }
+    my @notes       = $recipe.notes;         # Cooklang::Note objects
     my %data        = $recipe.data;          # { metadata => ..., steps => ... } as in the spec tests
     my $ast_tree    = $recipe.match;         # The grammar match
 
@@ -76,7 +78,11 @@ SUPPORTED SYNTAX
 
   * Scaling with `factor` or `servings`; fixed quantities `@salt{=1%tsp}`, cookware and timers are not scaled (spec proposal 0010)
 
-Not supported yet: notes (`> text`), sections (`= Dough`), short-hand preparations (`@onion{1}(chopped)`) and references to other recipes (`@./sauces/pesto{}`). They are parsed as plain text or as an ordinary ingredient.
+  * Notes: a paragraph starting with `>` (spec proposal 0005)
+
+  * Sections `= Dough`, `== Filling ==` (spec proposal 0006)
+
+Not supported yet: short-hand preparations (`@onion{1}(chopped)`) and references to other recipes (`@./sauces/pesto{}`). They are parsed as plain text or as an ordinary ingredient.
 
 DOCUMENTATION
 =============

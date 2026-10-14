@@ -46,4 +46,11 @@ is-deeply $recipe.steps_flat.map(*.<type>).List, <text ingredient text>, 'steps_
 $recipe = Cooklang.new( recipe => "Wait ~\{5%min}.\n" );
 is $recipe.human, "Wait 5 min.\n", 'Unnamed timer: no plural "s"';
 
+# A list of recipe files is joined before parsing
+$recipe = Cooklang.new( recipe_file => <t/data/easy_pancakes.cook t/data/aloo_curry.cook> );
+is $recipe.metadata<source>, 'https://www.indianhealthyrecipes.com/potato-curry-aloo-sabzi/', 'Files: metadata from second file';
+is $recipe.ingredients[0].name, 'eggs',    'Files: first ingredient from first file';
+is $recipe.ingredients[*-1].name, 'coriander leaves', 'Files: last ingredient from second file';
+is $recipe.cookware.elems, 2, 'Files: cookware';
+
 done-testing;

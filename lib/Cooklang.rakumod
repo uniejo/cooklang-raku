@@ -28,21 +28,14 @@ grammar Recipe {
     token meta_key      { <- [\:] >+ }    # except for ':'
     token meta_value    { \V+ }           # except for vertical space (new line)
     token item_text     { [ <!before <step_item> | '{' > \V ]+ }  # except for '{' and <step_item>
- #  token item_word     { [ ^ { \s \p{P} }]+ }  # except for '{', whitespace, punctuation
     token item_word     { <-[{\s] - :P>+ }  # except for '{', whitespace, punctuation (Unicode P*)
     token step_text     { [ <!before <step_item>> [ <non_metadata_group> | \V ] ]+ }  # Non-vertial as long as it does not match <step_item> (full match)
-    token number        { <number_part> [\s+ <reci> ] ? | <reci>  }
-    rule  reci          { <intval> '/' <intval> }
-    token intval        { <[1..9.]><[0..9]>* }
-    token number_part   { <[1..9.]><[0..9.]>* }
     token quantity      { <quant_text>  }
-    token quantityY     { <number> | <quant_text>  }
     token quant_text    { [ <!before ['%'|'//'|';'|'}'] > . ]* }
     token units         { [ <!before [    '//'|';'|'}'] > . ]+ }
     token modifier      { [ <!before [         ';'|'}'] > . ]+ }
     token qanote        { [ <!before [             '}'] > . ]+ }
     token qamount_HUH   { [ <!before [             '}'] > . ]* }
-    token hspace        { \h }
     token vertical      { \v [ \h+ <?before \v> ]? }  # a whitespace-only line counts as blank
 #   Note \h is horisontal white space. ie. \s - \v
 #   Note \v includes:
@@ -93,10 +86,8 @@ role CookBase does Associative {
         return %data;
     }
     method AT-KEY (\key) {
-      # return self.{key};
         my $k = '$!' ~ key;
         return .get_value(self) for grep { .name eq $k && .has_accessor }, self.^attributes(:local);
-#return self.^can($_).() for grep { key eq $_ && self.^can($_) }, <<quantity units modifier>>;
         return Nil;
     }
 }
@@ -167,20 +158,13 @@ class Ingredient does CookBase does CookMeasurement {
     submethod TWEAK() {
         self.measurement.quantity //= "some";
     }
-    submethod gist (--> Str:D) {
-        return self.orig;
-    }
     submethod human (--> Str:D) {
         return self.measurement.human(self.name);
     }
 }
 class Timer does CookBase does CookMeasurement {
     submethod TWEAK() {
-     #   self.measurement.units    //= Nil;
         self.measurement.quantity //= "";
-    }
-    submethod gist (--> Str:D) {
-        return self.orig;
     }
     submethod human (--> Str:D) {
         return self.measurement.human(self.name);
@@ -201,9 +185,6 @@ class Vertical does CookBase {
 class Metadata does CookBase {
     has $.meta_key;
     has $.meta_value;
-    submethod gist (--> Str:D) {
-        return self.orig;
-    }
     submethod human (--> Str:D) {
         return "( {self.meta_key} {self.meta_value} )";
     }
@@ -214,8 +195,6 @@ class RecipeActions {
     has @.parts        is rw;
     method TOP ($/) {
         make @.parts;
-    }
-    method line ($/) {
     }
     method step ($/) {
         my @step_item = $/<step_item>.made.list if $/<step_item> && $/<step_item>.made;
@@ -238,11 +217,7 @@ class RecipeActions {
         my %res;
 	for %res<measurement> {
 	    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
-	#   say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
-        # qamount and quantity at the same time - One has to go
-            #.quantity //= 1*$!factor;
             .quantity //= "some";
-	    # say "Ingredient { $/ } : quantity now: { .quantity.raku }";
             .number   //= 1*$!factor;
         }
         %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
@@ -298,58 +273,29 @@ class RecipeActions {
                die unless $n ~~ Numeric;
                $n.Numeric * $factor
            } //
-        # $q_nosp ~~ /^([1-9]\d*)-(([1-9]\d*)$/ ?? try { [$1,$2].map{* * $.factor}.join("-") } //
            $num_str ~~  /^(<[0..9.]>+)\s*"-"\s*(<[0..9.]>+)$/ && try { # Make quantity range numeric (if possible), and back to range string TODO? no zero prefix
 	       join ' - ', map { die if /^0\d/; 0+$_*$factor }, $/[0], $/[1];
-
            } //
            $num_str ~ ($factor != 1 ?? " * {$factor}" !! "");  # Otherwise use trimmed text (but add factor if present)
 
-      # say "Measurement {$/} * { $.factor } = {$res.raku}";
         # Mixed number like "1 1/2" becomes 1.5
         if $num ~~ Str && $num_str.words > 1 && $num_str.words.all ~~ /^ <[0..9]>+ [ <[./]> <[0..9]>+ ]? $/ {
             $num = ([+] $num_str.words.map(*.Numeric)) * $factor;
         }
-      # if ( $num ~~ Real && ~$num eq $num_str ) {
         if ( $num ~~ Real ) {
             $num_str = $num;
         }
     }
     method units ($/) {
-        make ~$/.trim // "";
+        make ~$/.trim;
     }
     method modifier ($/) {
-        make ~$/.trim // "";
+        make ~$/.trim;
     }
     method quantity ($/) {
 	make ~$/.trim  if $/ && ~$/ !~~ /^\s*$/;
     }
-    method number ($/) {
-	make ~$/.trim  if $/ && ~$/ ne '';
-    }
-    method metadata ($/) {
-    }
-#    method metadata_group ($/) {
-#        my %res;
-#say "Processing metadata_group " ~ ~$/;
-#        # TODO
-##for %res<metadata_group_line> {
-##           #  %res<meta_key>   = ~$/<meta_key>.trim;
-##           #  %res<meta_value> = ~$/<meta_value>.trim;
-##    $_ = $/<qamount> && $/<qamount>.made // Measurement.new( units => "" );
-##    say "Ingredient { $/ } : quantity from qamount.made measurement: { .quantity.raku }";
-##       # qamount and quantity at the same time - One has to go
-##           #.quantity //= 1*$!factor;
-##           .quantity //= "some";
-##    say "Ingredient { $/ } : quantity now: { .quantity.raku }";
-#      #     .number   //= 1*$!factor;
-#      #     .modifier = ~$/<modifier>  if $/<modifier>;
-#      # }
-#      # %res<orig> = ~$/;
-#      # push @.parts, Metadata.new( |%res );
-#    }
     method metadata_line ($/) {
-#say "Processing metadata_line " ~ ~$/;
         my %res;
         %res<meta_key>   = ~$/<meta_key>.trim;
         %res<meta_value> = ~$/<meta_value>.trim;
@@ -357,7 +303,6 @@ class RecipeActions {
         push @.parts, Metadata.new( |%res );
     }
     method metadata_group_line ($/) {
-#say "Processing metadata_group_line { (~$/).raku }";
         my %res;
         %res<meta_key>   = ~$/<meta_key>.trim;
         %res<meta_value> = ~$/<meta_value>.trim;
@@ -409,17 +354,15 @@ method data {
     return $!match  unless $!match && $!match.made;
     my %res;
     %res<metadata> = self.metadata;
- #  %res<metadata> = $[]  unless %res<metadata> && %res<metadata>.?keys;
     %res<steps> = self.steps;
- #  %res<steps> = $[]  unless %res<steps>;
     return %res;
 }
 
 submethod parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type? ) {
     return Empty  unless $!match && $!match.made;
     my @list = $!match.made;
-    @list .= grep( $match );# if $match;#   if $type.^name ne 'Any';
-    @list = split-by(@list, $split-by)   if $split-by.^name ne 'Cooklang::CookBase';
+    @list .= grep( $match );
+    @list = split-by(@list, $split-by)   if $split-by !=:= CookBase;
     @list = join-by(@list, $join-by)   if $join-by;
     @list = apply-data-type( @list, $data-type )   if $data-type;
     return @list;
@@ -454,36 +397,28 @@ sub split-by( @list-in, CookBase $split-by ) {
 sub join-by( @list-in, $join-by ) {
     my @list-out;
     my $item;
-#say "Processing join-by";
     for @list-in -> $p {
         if $p ~~ List|Array {
-#say "Processing join-by list >  " ~ $p;
             @list-out.push: join-by($p, $join-by);
             next;
         }
-#say "Processing join-by item     " ~ $p.orig;
         if $p ~~ $join-by {
             if $item {
                 $item = $item.clone( value => $item.value ~ $p.value, orig => $item.orig ~ $p.orig );
-#say "Processing join-by item 1 +   = " ~ $p.value;
             }
             else {
-#say "Processing join-by item 1 . ";
                 $item = $p;
             }
         }
         else {
             if $item {
-#say "Processing join-by item 0 >    = " ~ $item.value;
                 @list-out.push: $item;
                 $item = Nil;
             }
-#say "Processing join-by item 0 > " ~ $p;
             @list-out.push: $p;
         }
     }
     if ( $item ) {
-#say "Processing join-by item L > " ~ $item.value;
         @list-out.push: $item;
         $item = Nil;
     }
@@ -520,15 +455,13 @@ method steps_flat ( :$data-type = 'spec-data' )  {
         join-by => * ~~ Step, # type 'text'
         data-type => $data-type );
 }
-method metadata    {
+method metadata {
     my %m;
     %m{.meta_key} = .meta_value for self.parts.grep( * ~~ Cooklang::Metadata );
     return %m;
 }
-#
 method cook  { return self.parts>>.cook.join("") }
 method human { return self.parts>>.human.join("") }
-
 
 =begin pod
 

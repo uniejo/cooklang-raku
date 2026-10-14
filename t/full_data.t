@@ -25,7 +25,6 @@ Serve straightaway with your favourite topping. -- Add your favorite topping her
 
 my $recipe = Cooklang.new( recipe => $source );
 
-# note $recipe.match;
 
 my %expected =
     data => {
@@ -80,10 +79,6 @@ my %expected =
         {:name("butter"), :quantity("some"), :type("ingredient"), :units("")},
         {:name("oil"), :quantity("some"), :type("ingredient"), :units("")},
     ),
-    cookwares => (
-        {:name("bowl and leave to stand for ~"), :quantity(15), :type("cookware")},
-        {:name("large non-stick frying pan"), :quantity(1), :type("cookware")},
-    ),
     comments => (
         {:type('comment'), value => "Source: https://www.jamieoliver.com/recipes/eggs-recipes/easy-pancakes/" },
         {:type('comment'), value => "Add your favorite topping here to make sure it\'s included in your meal plan!" },
@@ -94,9 +89,5 @@ subtest '.metadata is-deeply' => { is-deeply( $recipe.metadata, %expected<data><
 subtest '.ingredients is-deeply' => { is-deeply( $recipe.ingredients>>.spec-data, %expected<ingredients>, 'Test .ingredients output') };
 subtest '.comments is-deeply' => { is-deeply( $recipe.comments>>.spec-data, %expected<comments>, 'Test .comments output') };
 
-#note("Ingredient (unsorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.list;
-#note("Ingredient (sorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort;
-#note("Ingredient (sorted by name): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort(by => [<name>]);
-#note("Ingredient (sorted by units, quantity, name): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort(by => [<units quantity name>]);
 
 done-testing;

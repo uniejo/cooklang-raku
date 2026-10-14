@@ -13,33 +13,23 @@ my $filter = rx{$test_method};
 
 for $canonical<tests>.sort(*.key).map(*.kv).flat -> $name, $test {
     next if $name !~~ $filter;
-#   note "Testing: $name : ", $test<source>.subst(/\v/, '\v', :g);
     # Cookware has no units (spec tests/README.md), but a few canonical tests
     # list `units: ""` for cookware anyway. Drop it so all tests agree.
     for $test<result><steps>.map(|*) -> $item {
         $item<units>:delete if $item<type> eq 'cookware' && ($item<units> // '-') eq '';
     }
     my $recipe = Cooklang.new( recipe => $test<source> );
-#   note "Object data:\t", $recipe.data.raku;
-#   note "Object match:\t", $recipe.match.raku;
 
     my $status = $recipe.match ~~ Match ?? 'matched' !! 'failed';
     %count{ $status }++;
     %count<total>++;
 
-    my $test_title =  sprintf("Test: %s", $name);
     my $test_message =  sprintf("  Input text:   %s\n  Expected:    %s\n  Got (.data):  %s",
         $test<source>.subst(/\v/, '\v', :g), $test<result>.raku, $recipe.data.raku);
 
     subtest $name => {
         is-deeply( $recipe.data, $test<result>, $test_message);
     };
-
-#   note $recipe.metadata;
-#   note $recipe.ingredients;
-#   note $recipe.steps;
-#   note "Test finished: $name : $test<source>".subst(/\v/, '\v', :g);
-#   note "--------";
 }
 note(%count);
 

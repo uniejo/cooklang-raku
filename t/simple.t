@@ -14,7 +14,6 @@ Melt @butter{100%g} without getting brown. Mix into the other ingredients.
 ';
 
 my $recipe = Cooklang.new( recipe => $source, factor => 1 );
-#note "Input text:\n{$source}\n";
 
 is $recipe.match.made[1].WHAT, Cooklang::Step, 'Match made Part 1 type is: Cooklang::Step';
 is $recipe.match.made[1].orig, 'Banana cake',  'Match made Part 1 has text: Banana cake';
@@ -35,40 +34,19 @@ is $recipe.parts[4].WHAT, Cooklang::Ingredient, 'Part 3 type is: Cooklang::Ingre
 is $recipe.parts[4].orig, '@eggs{3}',     'Part 3 is item: @eggs{3}';
 is $recipe.parts[4].gist, '@eggs{3}',     'Part 3 has gist: @eggs{3}';
 is $recipe.parts[4].quantity, 3,          'Part 3 is item quantity: 3';
-#is $recipe.ingredients[0]<quantity>,   3;
 is $recipe.parts[8].WHAT, Cooklang::Cookware, 'Part 7 type is: Cooklang::Cookware';
 is $recipe.parts[8].orig, '#bowl{}',          'Part 7 has orig: bowl{}';
 is $recipe.parts[8].gist, '#bowl{}',          'Part 7 has gist: bowl{}';
 
 is $recipe.ingredients[0].orig, '@eggs{3}',        'Ingredient 1 is item: @eggs{3}';
 is $recipe.ingredients[1].gist, '@sugar{150%g}',        'Ingredient 2 is item: @sugar{150%g}';
-#$recipe.steps.raku.note;
 # No empty lines, so it is all one step (a paragraph), with line breaks as spaces
 is $recipe.steps.elems,        1,                    'Steps: one paragraph';
 is $recipe.steps[0][0]<value>, 'Banana cake Whip ',  'Step 1 part 1 is: Banana cake Whip ';
 is $recipe.steps[0][1]<name>,  'eggs',               'Step 1 part 2 name is: eggs';
 is $recipe.steps[0][2]<value>, ' together with ',    'Step 1 part 3 is:  together with ';
 
-#is $recipe.cookware[0].gist, '#bowl{}',          'Cookware 1 has gist: bowl{}';
 
-#$recipe.parts>>.gist.join("").note;
-#note $recipe.match.made;
-#note $recipe.match;
-#is $recipe.ingredients[0],   3;
-#is $recipe.ingredients[0],   3;
-#is $recipe.ingredients[1]<quantity>, 150;
-#is $recipe.ingredients[2]<quantity>, "2-3";
-#note("");
-#note("Ingredient (#1): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.list;
 
-#$recipe = Cooklang.new( recipe => $source, factor => 5 );
-#is $recipe.ingredients[0]<quantity>,  15;
-#is $recipe.ingredients[1]<quantity>, 750;
-#is $recipe.ingredients[2]<quantity>, "2-3 * 5";  # "10-15" would be better
-#note("");
-#note("Ingredient (#2): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.list;
-#note("Ingredient (sorted): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort;
-#note("Ingredient (sorted by name): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort(by => [<name>]);
-#note("Ingredient (sorted by units, quantity, name): {.<quantity>} {.<units>} {.<name>}") for $recipe.ingredients.sort(by => [<units quantity name>]);
 
 done-testing;

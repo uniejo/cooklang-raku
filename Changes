@@ -10,6 +10,9 @@ Revision history for Cooklang
  - human(): better plurals and a/an, optional items marked
  - Throw Cooklang::ParseError when a recipe can not be parsed
  - Fix metadata keys spanning lines, block comment values and Measurement methods
+ - Ranges like {2-3} are scaled at both ends; whole numbers are shown as 8, not 8.0
+ - human() leaves out the '\' that marks a line break
+ - Tests with the spec example recipes and made-up recipes using all features
  - Clearer grammar, more tests and updated documentation
 
 2.0.1   2024-10-29 16:45:00 Europe/Copenhagen

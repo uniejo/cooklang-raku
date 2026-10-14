@@ -193,6 +193,10 @@ class Step does CookBase {
     method gist (--> Str:D) {
         return self.orig // self.value;
     }
+    method human (--> Str:D) {
+        # Without the '\' that marks a line break at the end of a line
+        return ( self.value // self.orig ).subst(/ \h* '\\' \h* $ /, '');
+    }
 }
 class Vertical does CookBase {
     has $.value;
@@ -328,7 +332,7 @@ class RecipeActions {
         return $m;
     }
     # Turn the quantity text into a number, scaled by $factor, when possible:
-    #   "2" -> 2,  "1/2" or "1 / 2" -> 0.5,  "1 1/2" -> 1.5,  "1-2" -> "1 - 2" (range)
+    #   "2" -> 2,  "1/2" or "1 / 2" -> 0.5,  "1 1/2" -> 1.5,  "1-2" -> "1-2" (range, both ends scaled)
     # Anything else is kept as text, e.g. "a pinch" (with " * factor" when scaled).
     # A number with a leading zero, like "02", is text (spec).
     method num_parts ( $num_str is rw, $num is rw, $factor ) {
@@ -338,13 +342,15 @@ class RecipeActions {
             $num = 1;
         }
         elsif is-number($num_str) {
-            $num = val($num_str) * $factor;
+            $num = ( val($num_str) * $factor ).narrow;
         }
-        elsif $num_str ~~ / ^ (<[0..9.]>+) \s* '-' \s* (<[0..9.]>+) $ / && is-number(~$0) && is-number(~$1) {
-            $num = ( $0, $1 ).map({ val(~$_) * $factor }).join(' - ');
+        elsif $num_str ~~ / ^ (<[0..9.]>+) (\s* '-' \s*) (<[0..9.]>+) $ / && is-number(~$0) && is-number(~$2) {
+            # Range: scale both ends, and keep the author's spacing around '-'
+            $num = ( val(~$0) * $factor ).narrow ~ $1 ~ ( val(~$2) * $factor ).narrow;
+            $num_str = $num;
         }
         elsif $num_str.words > 1 && all($num_str.words) ~~ / ^ \d+ [ <[./]> \d+ ]? $ / {
-            $num = ( [+] $num_str.words».Numeric ) * $factor;  # Mixed number
+            $num = ( ( [+] $num_str.words».Numeric ) * $factor ).narrow;  # Mixed number
         }
         else {
             $num = $num_str ~ ( $factor != 1 ?? " * $factor" !! "" );
@@ -477,7 +483,7 @@ sub split-by( @list-in, CookBase $split-by ) {
             my $last = @list-out[*-1][*-1];
             my $sep = ' ';
             if $last ~~ Step && $last.value ~~ / '\\' \h* $ / {
-                @list-out[*-1][*-1] = $last.clone( value => $last.value.subst(/ '\\' \h* $ /, ''), orig => $last.orig );
+                @list-out[*-1][*-1] = $last.clone( value => $last.value.subst(/ \h* '\\' \h* $ /, ''), orig => $last.orig );
                 $sep = "\n";
             }
             @list-out[*-1].push: Step.new( type => 'text', value => $sep, orig => $sep );

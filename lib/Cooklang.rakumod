@@ -156,7 +156,8 @@ class Comment does CookBase {
        return self.orig // "[- { self.value } -]";
     }
     method human (--> Str:D) {
-       return "( { self.value } )";
+       # A '-- comment' line includes its line break
+       return "( { self.value } )" ~ ( self.orig && self.orig ~~ / \v $ / ?? "\n" !! "" );
     }
 }
 class Cookware does CookBase does CookMeasurement {
@@ -167,7 +168,9 @@ class Cookware does CookBase does CookMeasurement {
         self.measurement.quantity //= 1;
     }
     method human (--> Str:D) {
-        return self.measurement.human(self.name) ~ (self.optional ?? " (optional)" !! "");
+        # Only show the quantity when it is given: '#pan' is 'pan', '#pan{2}' is '2 pan'
+        my $text = self.number.defined ?? self.measurement.human(self.name) !! self.name;
+        return $text ~ (self.optional ?? " (optional)" !! "");
     }
 }
 class Ingredient does CookBase does CookMeasurement {
@@ -219,7 +222,7 @@ class Metadata does CookBase {
             when Positional  { .join(', ') }
             default          { ~$_ }
         };
-        return "( {self.meta_key} $value )";
+        return "( {self.meta_key} $value )\n";
     }
 }
 

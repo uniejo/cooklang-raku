@@ -62,7 +62,7 @@ my $src = "---\ntitle: X\n---\n-- hi\nAdd \@salt\{1%g}. [- block -]\nStir.\n";
 $recipe = Cooklang.new( recipe => $src );
 is $recipe.cook, $src, 'cook: front matter and comments kept';
 is-deeply $recipe.metadata, %( title => 'X' ), 'cook: front matter markers not in metadata';
-is $recipe.human, "( title X )\n( hi )Add 1 g salt. ( block )\nStir.\n", 'human: front matter markers hidden';
+is $recipe.human, "( title X )\n\n( hi )\nAdd 1 g salt. ( block )\nStir.\n", 'human: front matter markers hidden, one line per metadata and comment line';
 
 # Measurement has the CookBase methods
 my $m = Cooklang::Measurement.new( quantity => 2, units => 'g', orig => '{2%g}' );
@@ -85,8 +85,9 @@ $src = "Season with \@salt and \@?chilli powder\{1%pinch}.\nUse a #?splatter gua
 $recipe = Cooklang.new( recipe => $src );
 is $recipe.ingredients[0].human, 'some salt',                     'human: required ingredient';
 is $recipe.ingredients[1].human, '1 pinch chilli powder (optional)', 'human: optional ingredient';
-is $recipe.cookware[0].human,    '1 splatter guard (optional)',      'human: optional cookware';
-is $recipe.cookware[1].human,    '1 pan',                            'human: required cookware';
+is $recipe.cookware[0].human,    'splatter guard (optional)',        'human: optional cookware';
+is $recipe.cookware[1].human,    'pan',                              'human: required cookware, no quantity given';
+is Cooklang.new( recipe => "Use #pan\{2}.\n" ).cookware[0].human, '2 pans', 'human: cookware with a quantity';
 is $recipe.cook, $src, 'cook: optional marker kept';
 
 # Plural of names

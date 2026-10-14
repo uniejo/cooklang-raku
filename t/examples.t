@@ -26,8 +26,8 @@ subtest 'Easy Pancakes' => {
     is $recipe.steps.elems, 6, 'steps';
     is $recipe.comments[0].value, 'TODO add source', 'comment';
     is-deeply $recipe.metadata, %(), 'no metadata';
-    # 'a' is from the recipe text, '1 bowl' is the cookware with its default quantity
-    is $recipe.steps(data-type => 'human')[1].join, 'Pour into a 1 bowl and leave to stand for 15 minutes.', 'human step';
+    # Cookware without a given quantity is shown without one ('a' is from the recipe text)
+    is $recipe.steps(data-type => 'human')[1].join, 'Pour into a bowl and leave to stand for 15 minutes.', 'human step';
 
     $recipe.factor = 2;
     is-deeply items($recipe.ingredients[^2]), (('eggs', 6, ''), ('flour', 250, 'g')), 'scaled ingredients';

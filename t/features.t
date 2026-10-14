@@ -59,7 +59,7 @@ subtest 'Pesto: >> metadata, ranges, fractions, comments and line breaks' => {
     is-deeply $recipe.comments».value.List, ('or a bit more',), 'comment at the end of a line';
     is $recipe.steps.elems, 3, 'steps';
     is $recipe.steps(data-type => 'human')[0].join,
-        "Toast 2-3 tbsp pine nuts in 1 pan for 2 minutes.\nWatch them closely.", 'backslash keeps the line break';
+        "Toast 2-3 tbsp pine nuts in pan for 2 minutes.\nWatch them closely.", 'backslash keeps the line break';
     is $recipe.steps(data-type => 'human')[1].join,
         "Blend 2 cups basil, 1-2 cloves garlic, 0.5 cup parmesan and the pine nuts. Add 0.333333 cup olive oil slowly  while blending.",
         'single line breaks become spaces, the comment is left out';

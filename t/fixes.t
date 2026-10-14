@@ -163,6 +163,16 @@ is $recipe.ingredients[0].quantity, 0.25, 'Servings: changed later';
 is Cooklang.new( recipe => "Add \@egg\{1}.\n", servings => 3 ).ingredients[0].quantity, 3, 'Servings: no metadata means 1 serving';
 is Cooklang.new( recipe => "---\nservings: 2|4|6\n---\nAdd \@egg\{1}.\n", servings => 4 ).factor, 2, 'Servings: old style 2|4|6 uses the first';
 
+# An amount does not continue on the next line
+$src = "Add \@salt\{ and stir\nwell} please.\n";
+$recipe = Cooklang.new( recipe => $src );
+is-deeply $recipe.ingredients.map({ ( .name, .quantity ) }).List, (('salt', 'some'),), 'Amount: not across lines';
+is $recipe.steps[0][2]<value>, '{ and stir well} please.', 'Amount: unclosed brace is text';
+is $recipe.cook, $src, 'Amount: cook round-trip';
+
+# A block comment can span lines (spec EBNF)
+is Cooklang.new( recipe => "A [- one\ntwo -] B\n" ).comments[0].value, "one\ntwo", 'Block comment across lines';
+
 # Parse errors are reported
 my $e = Cooklang::ParseError.new( line => 3, near => '@x' );
 isa-ok $e, Exception, 'ParseError is an Exception';

@@ -46,14 +46,15 @@ grammar Recipe {
     token item_text       { [ <!before '{' | <step_item>> \V ]+ }  # Up to '{' (or the next item)
     token item_word       { <-[\s] - :P>+ }                         # Up to whitespace or punctuation (Unicode P*)
 
-    # {quantity%units//modifier;note}: every part is optional and ends where a later part starts.
+    # {quantity%units//modifier;note}: every part is optional and ends where a later part starts,
+    # and an amount is on one line (\V).
     # A quantity starting with '=' is fixed: it is not scaled, e.g. {=1%tsp}
     token qamount         { '{' ~ '}' [ <fixed>? <quantity> [ '%' <units> ]? [ '//' <modifier> ]? [ ';' <qanote> ]? ] }
     token fixed           { \h* '=' }
-    token quantity        { [ <!before '%' | '//' | ';' | '}'> . ]* }
-    token units           { [ <!before       '//' | ';' | '}'> . ]+ }
-    token modifier        { [ <!before              ';' | '}'> . ]+ }
-    token qanote          { [ <!before                    '}'> . ]+ }
+    token quantity        { [ <!before '%' | '//' | ';' | '}'> \V ]* }
+    token units           { [ <!before       '//' | ';' | '}'> \V ]+ }
+    token modifier        { [ <!before              ';' | '}'> \V ]+ }
+    token qanote          { [ <!before                    '}'> \V ]+ }
 
     # Comments: '-- to end of line' or '[- block -]'
     token line_comment    { <comment> \v | <block_comment> }

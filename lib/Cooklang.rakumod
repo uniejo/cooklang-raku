@@ -31,7 +31,7 @@ grammar Recipe {
     # Metadata: '>> key: value' lines, or a YAML front matter block at the very start (^) of the recipe
     token metadata        { <metadata_line> | <metadata_group> }
     rule  metadata_line   { '>>' <meta_key> ':' <meta_value> \v }
-    token metadata_group  { ^ <metadata_open> <metadata_body> <metadata_close> <?{ front-matter(~$<metadata_body>).defined }> }
+    token metadata_group  { ^ <metadata_open> ~ <metadata_close> <metadata_body> <?{ front-matter(~$<metadata_body>).defined }> }
     token metadata_body   { [ <!before '---'> \V* \v ]* }
     token metadata_open   { '---' \h* \v }
     token metadata_close  { '---' \h* }

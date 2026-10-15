@@ -1,4 +1,4 @@
-unit class Cooklang:ver<2.1.0>:auth<zef:uniejo>;
+unit class Cooklang:ver<2.2.0>:auth<zef:uniejo>;
 use AttrX::Mooish;
 use YAMLish;
 
@@ -616,11 +616,12 @@ Cooklang - C<Raku> C<Cooklang> parser
     my $recipe = Cooklang.new( recipe_file => <recipe1.cook recipe2.cook> );
 
     # Recipe parts
-    my %metadata    = $recipe.metadata;      # Front matter (YAML) and '>> key: value' lines
+    my %metadata    = $recipe.metadata;      # Front matter (YAML) and '>> key: value' lines; keys are case-insensitive
     my @ingredients = $recipe.ingredients;   # Cooklang::Ingredient objects
     my @cookware    = $recipe.cookware;      # Cooklang::Cookware objects
     my @comments    = $recipe.comments;      # Cooklang::Comment objects
     my @steps       = $recipe.steps;         # Steps (paragraphs) as lists of hashes
+    my @flat        = $recipe.steps_flat;    # All steps as one list of hashes
     my @sections    = $recipe.sections;      # Steps grouped by section: { name => ..., steps => [...] }
     my @notes       = $recipe.notes;         # Cooklang::Note objects
     my %data        = $recipe.data;          # { metadata => ..., steps => ... } as in the spec tests
@@ -636,7 +637,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
     # Scale the recipe
     $recipe.factor   = 2;                    # Double all scalable quantities
-    $recipe.servings = 4;                    # Scale to 4 servings (relative to the 'servings' metadata)
+    $recipe.servings = 4;                    # Scale to 4 servings (relative to the 'servings' or 'serves' metadata)
 
     # Output
     say $recipe.human;                       # Readable text
@@ -650,7 +651,7 @@ Cooklang - C<Raku> C<Cooklang> parser
 
 =begin VERSION
 
-    version 2.1.0
+    version 2.2.0
 
 =end VERSION
 
@@ -673,7 +674,7 @@ The specification tests (C<t/spec>, a git submodule of the specification) are pa
 =item1 Quantities as numbers C<2>, fractions C<1/2>, mixed numbers C<1 1/2>, ranges C<1-2> or text C<a pinch>
 =item1 Steps: paragraphs separated by a blank line; a single line break is a space, unless the line ends with C<\>
 =item1 Comments C<-- to end of line> and C<[- block -]>
-=item1 Metadata as YAML front matter between C<---> lines, and C<<< >> key: value >>> lines
+=item1 Metadata as YAML front matter between C<---> lines, and C<<< >> key: value >>> lines; keys are case-insensitive and the last value wins (spec proposal 0007)
 =item1 Optional ingredients and cookware C<@?thyme>, C<#?splatter guard{}> (spec proposal 0018)
 =item1 Scaling with C<factor> or C<servings>; fixed quantities C<@salt{=1%tsp}>, cookware and timers are not scaled (spec proposal 0010)
 =item1 Notes: a paragraph starting with C<< > >> (spec proposal 0005)

@@ -15,11 +15,12 @@ SYNOPSIS
     my $recipe = Cooklang.new( recipe_file => <recipe1.cook recipe2.cook> );
 
     # Recipe parts
-    my %metadata    = $recipe.metadata;      # Front matter (YAML) and '>> key: value' lines
+    my %metadata    = $recipe.metadata;      # Front matter (YAML) and '>> key: value' lines; keys are case-insensitive
     my @ingredients = $recipe.ingredients;   # Cooklang::Ingredient objects
     my @cookware    = $recipe.cookware;      # Cooklang::Cookware objects
     my @comments    = $recipe.comments;      # Cooklang::Comment objects
     my @steps       = $recipe.steps;         # Steps (paragraphs) as lists of hashes
+    my @flat        = $recipe.steps_flat;    # All steps as one list of hashes
     my @sections    = $recipe.sections;      # Steps grouped by section: { name => ..., steps => [...] }
     my @notes       = $recipe.notes;         # Cooklang::Note objects
     my %data        = $recipe.data;          # { metadata => ..., steps => ... } as in the spec tests
@@ -35,7 +36,7 @@ SYNOPSIS
 
     # Scale the recipe
     $recipe.factor   = 2;                    # Double all scalable quantities
-    $recipe.servings = 4;                    # Scale to 4 servings (relative to the 'servings' metadata)
+    $recipe.servings = 4;                    # Scale to 4 servings (relative to the 'servings' or 'serves' metadata)
 
     # Output
     say $recipe.human;                       # Readable text
@@ -48,7 +49,7 @@ SYNOPSIS
 VERSION
 =======
 
-    version 2.1.0
+    version 2.2.0
 
 DESCRIPTION
 ===========
@@ -72,7 +73,7 @@ SUPPORTED SYNTAX
 
   * Comments `-- to end of line` and `[- block -]`
 
-  * Metadata as YAML front matter between `---` lines, and `>> key: value` lines
+  * Metadata as YAML front matter between `---` lines, and `>> key: value` lines; keys are case-insensitive and the last value wins (spec proposal 0007)
 
   * Optional ingredients and cookware `@?thyme`, `#?splatter guard{}` (spec proposal 0018)
 

@@ -1,4 +1,12 @@
-Revision history for Cooklang
+2.2.0   2026-10-15 11:01:28 Europe/Copenhagen
+ - Metadata keys are case-insensitive, and the last value wins (spec proposal 0007)
+ - Scaling by servings also reads the 'serves' metadata
+ - @??x is the optional ingredient '?x', also without {}
+ - Timer human() is the amount ('3 minutes'), without the name
+ - steps_flat() handles line breaks as steps() does
+ - Tests: random text round-trips through cook(), spec proposal examples,
+   ranges, mixed numbers and text quantities
+ - Code tidy-up
 
 2.1.0   2026-10-14 12:53:01 Europe/Copenhagen
  - Align with the current Cooklang spec tests (t/spec submodule)

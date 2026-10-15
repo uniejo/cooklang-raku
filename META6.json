@@ -5,11 +5,13 @@
     "YAMLish"
   ],
   "description": "A raku variant of Cooklang",
+  "license": "Artistic-1.0-Perl OR GPL-1.0-or-later",
   "name": "Cooklang",
   "provides": {
     "Cooklang": "lib/Cooklang.rakumod"
   },
   "resources": [],
+  "source-url": "https://github.com/uniejo/cooklang-raku.git",
   "test-depends": [],
   "version": "2.2.0"
 }

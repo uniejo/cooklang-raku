@@ -15,13 +15,18 @@ Note @thyme{few%springs}.
 ';
 
 my $recipe = Cooklang.new( recipe => $source, factor => 1 );
-is $recipe.ingredients[0]<measurement><quantity>,   3;
-is $recipe.ingredients[0].quantity,    3;
-is $recipe.ingredients[1].quantity, 150;
-is $recipe.ingredients[2].quantity, '2-3';
+is $recipe.ingredients[0]<measurement><quantity>, 3,     'quantity through hash access';
+is $recipe.ingredients[0].quantity,               3,     'quantity: number';
+is $recipe.ingredients[1].quantity,               150,   'quantity: number with units';
+is $recipe.ingredients[2].quantity,               '2-3', 'quantity: range';
+is $recipe.ingredients[4].quantity,               1.5,   'quantity: mixed number';
+is $recipe.ingredients[5].quantity,               'few', 'quantity: text';
 
 $recipe = Cooklang.new( recipe => $source, factor => 5 );
-is $recipe.ingredients[0].measurement.number,  15;
-is $recipe.ingredients[1].measurement.number, 750;
+is $recipe.ingredients[0].measurement.number, 15,  'factor 5: number scaled';
+is $recipe.ingredients[1].measurement.number, 750, 'factor 5: number with units scaled';
+is $recipe.ingredients[2].measurement.number, '10-15',    'factor 5: both ends of a range scaled';
+is $recipe.ingredients[4].measurement.number, 7.5,        'factor 5: mixed number scaled';
+is $recipe.ingredients[5].measurement.number, 'few * 5',  'factor 5: text shows the factor';
 
 done-testing;

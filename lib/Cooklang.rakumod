@@ -43,9 +43,9 @@ grammar Recipe {
     token ingredient      { '@' <optional>? <!before \h> [ <item_text> <qamount> | <item_word> ] }
     token cookware        { '#' <optional>? <!before \h> [ <item_text> <qamount> | <item_word> ] }
     token timer           { '~'             <!before \h> [ <item_text>? <qamount> | <item_word> ] }
-    token optional        { '?' }  # Only the first '?' is the marker, '@??x{}' is ingredient '?x'
+    token optional        { '?' }  # Only the first '?' is the marker, '@??x' is ingredient '?x'
     token item_text       { [ <!before '{' | <step_item>> \V ]+ }  # Up to '{' (or the next item)
-    token item_word       { <-[\s] - :P>+ }                         # Up to whitespace or punctuation (Unicode P*)
+    token item_word       { <-[\s] - :P>+ || <?after '?'> '?' <-[\s] - :P>+ }  # Up to whitespace or punctuation (Unicode P*), '?x' after the optional marker
 
     # {quantity%units//modifier;note}: every part is optional and ends where a later part starts,
     # and an amount is on one line (\V).
@@ -95,13 +95,13 @@ role CookBase does Associative {
             next unless .has_accessor;
             my $v = .get_value(self);
             next unless defined $v;
-            %data{.name.subst(<$!>,"")}=$v;
+            %data{.name.substr(2)} = $v;
         }
-	for <<quantity units modifier fixed>> {
+        for <quantity units modifier fixed> {
             next unless self.^can($_);
-	    my $v = self."$_"();
+            my $v = self."$_"();
             next unless defined $v;
-	    %data{$_} = $v;
+            %data{$_} = $v;
         }
         return %data;
     }
@@ -114,7 +114,7 @@ role CookBase does Associative {
     }
     method AT-KEY (\key) {
         my $k = '$!' ~ key;
-        return .get_value(self) for grep { .name eq $k && .has_accessor }, self.^attributes(:local);
+        return .get_value(self) with self.^attributes(:local).first({ .name eq $k && .has_accessor });
         return Nil;
     }
 }
@@ -130,21 +130,21 @@ class Measurement does CookBase {
     }
     method human ( $item? is copy ) {
         return Empty  unless self.quantity || self.units || self.modifier || $item;
-	my $quantity = self.quantity;
-	# Plural of $item, but only when there are no units ("2 eggs", "2 tsp salt").
-	# The name is never made singular, as the author chose it ("chilli flakes")
-	if self.pluralis {
+        my $quantity = self.quantity;
+        # Plural of $item, but only when there are no units ("2 eggs", "2 tsp salt").
+        # The name is never made singular, as the author chose it ("chilli flakes")
+        if self.pluralis {
             $item ~= "s"  if $item && !self.units && $item !~~ / s $ /;
         }
-	elsif $item {
-	    $quantity ||= $item ~~ /^ :i <[aeiou]> / ?? 'an' !! 'a';
+        elsif $item {
+            $quantity ||= $item ~~ /^ :i <[aeiou]> / ?? 'an' !! 'a';
         }
         my @qparts =
-	    $quantity // Empty,
-	    self.units    || Empty,
-	    self.modifier || Empty,
-	    $item || Empty;
-	return @qparts ?? @qparts.join(" ") !! Empty;
+            $quantity // Empty,
+            self.units    || Empty,
+            self.modifier || Empty,
+            $item || Empty;
+        return @qparts ?? @qparts.join(" ") !! Empty;
     }
 }
 role CookMeasurement {
@@ -196,7 +196,7 @@ class Timer does CookBase does CookMeasurement {
         self.measurement.quantity //= "";
     }
     method human (--> Str:D) {
-        return self.measurement.human(self.name);
+        return self.measurement.human || self.name;  # The name is for notifications in apps: '3 minutes', not '3 minutes eggs'
     }
 }
 class Step does CookBase {
@@ -305,8 +305,8 @@ class RecipeActions {
     method ingredient ($/) {
         return   unless $/;
         my %res;
-	for %res<measurement> {
-	    $_ = self!measurement( $/, $!factor, units => "" );
+        given %res<measurement> {
+            $_ = self!measurement( $/, $!factor, units => "" );
             .quantity //= "some";
             .number   //= 1*$!factor;
         }
@@ -319,11 +319,11 @@ class RecipeActions {
     method cookware ($/) {
         return   unless $/;
         my %res;
-	for %res<measurement> {
-	    # Cookware has no units (see spec tests/README.md), and is not scaled (spec proposal 0010)
-	    $_ = self!measurement( $/, 1 );
-	    .units = Nil;
-	}
+        given %res<measurement> {
+            # Cookware has no units (see spec tests/README.md), and is not scaled (spec proposal 0010)
+            $_ = self!measurement( $/, 1 );
+            .units = Nil;
+        }
         %res<name> = $/<item_text> ?? ~$/<item_text> !! ~$/<item_word>;
         %res<optional> = True  if $/<optional>;
         %res<orig> = ~$/;
@@ -332,10 +332,10 @@ class RecipeActions {
     method timer ($/) {
         return    unless $/;
         my %res;
-	for %res<measurement> {
-	    # Timers are not scaled (spec proposal 0010)
-	    $_ = self!measurement( $/, 1, units => "" );
-	}
+        given %res<measurement> {
+            # Timers are not scaled (spec proposal 0010)
+            $_ = self!measurement( $/, 1, units => "" );
+        }
         %res<name> = $/<item_text> ?? ~$/<item_text> !! $/<item_word> ?? ~$/<item_word> !! "";
         %res<orig> = ~$/;
         make Timer.new( |%res );
@@ -347,7 +347,7 @@ class RecipeActions {
         %res<modifier> = $/<modifier>.made if $/<modifier>;
         %res<fixed>    = True  if $/<fixed>;
         %res<orig> = ~$/;
-	make Measurement.new( |%res );
+        make Measurement.new( |%res );
     }
     # The measurement of an item, scaled by $factor unless it is fixed
     method !measurement ( $/, $factor, *%default --> Measurement ) {
@@ -388,7 +388,7 @@ class RecipeActions {
         make ~$/.trim;
     }
     method quantity ($/) {
-	make ~$/.trim  if $/ && ~$/ !~~ /^\s*$/;
+        make ~$/.trim  if $/ && ~$/ !~~ /^\s*$/;
     }
     # Metadata is only added when the whole line or front matter block has matched
     method metadata ($/) {
@@ -412,13 +412,13 @@ class RecipeActions {
     method note ($/) {
         my $text = ~$/;
         my $value = $text.lines.map({ .subst(/ ^ \h* '>' /, '').trim }).grep(*.chars).join(' ');
-        push @.parts, Note.new( value => $value, orig => $text );
+        @.parts.push: Note.new( value => $value, orig => $text );
     }
     method section ($/) {
-        push @.parts, Section.new( name => ~$/<name>.trim || Nil, orig => ~$/ );
+        @.parts.push: Section.new( name => ~$/<name>.trim || Nil, orig => ~$/ );
     }
     method line_comment ($/) {
-        push @.parts, Comment.new( value => comment-text($/), orig => ~$/ );
+        @.parts.push: Comment.new( value => comment-text($/), orig => ~$/ );
     }
     method step_comment ($/) {
         make          Comment.new( value => comment-text($/), orig => ~$/ );
@@ -451,11 +451,11 @@ method trigger-servings ($servings) {
     self!scale-to-servings;
 }
 
-# Set the factor from the wanted servings and the recipe's 'servings' metadata.
+# Set the factor from the wanted servings and the recipe's 'servings' (or 'serves', any case) metadata.
 # A recipe without 'servings' is for 1 serving (spec proposal 0010).
 method !scale-to-servings {
     return  unless $!servings.defined && $!match;
-    my $base = ( self.metadata<servings> // 1 ).Str.match(/ <[0..9.]>+ /);  # '2', or old style '2|4|6'
+    my $base = ( self.metadata.map({ .key.fc => .value }).Hash<servings serves>.first(*.defined) // 1 ).Str.match(/ <[0..9.]>+ /);  # '2', or old style '2|4|6'
     self.factor = $!servings / ( $base && +$base ?? +$base !! 1 );
 }
 
@@ -464,7 +464,7 @@ method trigger-factor ($factor) {
 }
 
 # (Re)parse the recipe, scaled by the current factor
-# Throws ParseError if the recipe can not be parsed
+# Throws ParseError if the recipe can not be parsed (a safety net: step_text takes any character, see t/roundtrip.t)
 method !parse {
     return  unless $!recipe.defined;
     my $match = Recipe.subparse($!recipe, actions => RecipeActions.new( factor => $!factor // 1 ) );
@@ -506,13 +506,13 @@ method parts( :$match?, CookBase :$split-by?, :$join-by?, :$data-type?, :$from )
 # unless the line ends with a backslash, which forces a line break.
 sub split-by( @list-in, CookBase $split-by ) {
     my @list-out;
-    my $breaks = 0;
-    for @list-in -> $p {
-        if $p ~~ $split-by { $breaks++; next; }
-        if !@list-out || $breaks >= 2 {
+    my $break-count = 0;
+    for @list-in {
+        when $split-by { $break-count++ }
+        if !@list-out || $break-count >= 2 {
             @list-out.push: [];
         }
-        elsif $breaks == 1 {
+        elsif $break-count == 1 {
             my $last = @list-out[*-1][*-1];
             my $sep = ' ';
             if $last ~~ Step && $last.value ~~ / '\\' \h* $ / {
@@ -521,61 +521,40 @@ sub split-by( @list-in, CookBase $split-by ) {
             }
             @list-out[*-1].push: Step.new( type => 'text', value => $sep, orig => $sep );
         }
-        $breaks = 0;
-        @list-out[*-1].push: $p;
+        $break-count = 0;
+        @list-out[*-1].push: $_;
     }
     return @list-out;
 }
 
 sub join-by( @list-in, $join-by ) {
-    my @list-out;
-    my $item;
-    for @list-in -> $p {
-        if $p ~~ List|Array {
-            @list-out.push: join-by($p, $join-by);
-            next;
-        }
-        if $p ~~ $join-by {
-            if $item {
-                $item = $item.clone( value => $item.value ~ $p.value, orig => $item.orig ~ $p.orig );
-            }
-            else {
-                $item = $p;
+    my $joined;
+    # An Array (not a Seq), as apply-data-type assigns to the elements
+    return [ gather {
+        for @list-in {
+            when List|Array { take join-by($_, $join-by) }
+            when $join-by   { $joined = $joined ?? $joined.clone( value => $joined.value ~ .value, orig => $joined.orig ~ .orig ) !! $_ }
+            default {
+                if $joined { take $joined; $joined = Nil }
+                take $_;
             }
         }
-        else {
-            if $item {
-                @list-out.push: $item;
-                $item = Nil;
-            }
-            @list-out.push: $p;
-        }
-    }
-    if ( $item ) {
-        @list-out.push: $item;
-        $item = Nil;
-    }
-    return @list-out;
+        take $joined  if $joined;
+    } ];
 }
 
 sub apply-data-type ( @list, $data-type ) {
-    for @list -> $p is rw {
-        if ( $p ~~ List|Array ) {
-            for @$p -> $q is rw {
-	        $q.="$data-type"();
-            }
-        }
-        else {
-            $p.="$data-type"();
-        }
+    for @list {
+        when List|Array { apply-data-type($_, $data-type) }
+        default         { $_ .= "$data-type"() }
     }
     return @list;
 }
 
-method ingredients { return self.parts.grep( * ~~ Ingredient ) }
-method cookware    { return self.parts.grep( * ~~ Cookware ) }
-method comments    { return self.parts.grep( * ~~ Comment ) }
-method notes       { return self.parts.grep( * ~~ Note ) }
+method ingredients { return self.parts.grep(Ingredient) }
+method cookware    { return self.parts.grep(Cookware) }
+method comments    { return self.parts.grep(Comment) }
+method notes       { return self.parts.grep(Note) }
 method steps ( :$data-type = 'spec-data', :$from )  {
     return self.parts(
         match => * ~~ Step|Ingredient|Cookware|Timer|Vertical,
@@ -595,15 +574,24 @@ method sections ( :$data-type = 'spec-data' ) {
     @sections.shift  unless @sections[0]<parts>.first(Step|Ingredient|Cookware|Timer);
     return @sections.map({ %( name => .<name>, steps => self.steps( :$data-type, from => .<parts> ) ) }).Array;
 }
+# All steps as one list: line breaks are handled as in steps(), and the steps are joined by a space
 method steps_flat ( :$data-type = 'spec-data' )  {
+    my @steps = self.parts(
+        match => * ~~ Step|Ingredient|Cookware|Timer|Vertical,
+        split-by => Vertical );
+    my $space = Step.new( type => 'text', value => ' ', orig => ' ' );
     return self.parts(
-        match => * ~~ Step|Ingredient|Cookware|Timer,
+        from => @steps.map({ $space, |$_ }).flat.skip(1),
         join-by => * ~~ Step, # type 'text'
         data-type => $data-type );
 }
+# Keys are case-insensitive, and the latest value wins (spec proposal 0007)
 method metadata {
     my %m;
-    %m{.meta_key} = .meta_value for self.parts.grep( * ~~ Cooklang::Metadata );
+    for self.parts.grep(Cooklang::Metadata) -> $meta {
+        %m{ %m.keys.grep(*.fc eq $meta.meta_key.fc) }:delete;
+        %m{$meta.meta_key} = $meta.meta_value;
+    }
     return %m;
 }
 method cook  { return self.parts>>.cook.join("") }

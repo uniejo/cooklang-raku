@@ -98,4 +98,50 @@ subtest 'Layer cake: sections and notes' => {
     is $recipe.steps[0][0]<value>, 'If a > b and x == y, stir.', 'kept as text';
 }
 
+# The examples in the spec proposals (t/spec/proposals) and conventions (t/spec/conventions.md)
+subtest 'Spec examples' => {
+    my $recipe = Cooklang.new( recipe => "A step,\nthe same step.\n\nA different step.\n" );
+    is-deeply $recipe.steps(data-type => 'human').map(*.join).List,
+        ('A step, the same step.', 'A different step.'), '0004: a paragraph is one step';
+
+    my $note = 'This is a long note and the user writes the `>` at the beginning of every line.';
+    $recipe = Cooklang.new( recipe => "> This is a long note\n> and the user writes the `>` at the beginning of\n> every line.\n" );
+    is-deeply $recipe.notes».value.List, ($note,), "0005: note with '>' on every line";
+    $recipe = Cooklang.new( recipe => "> This is a long note\nand the user writes the `>` at the beginning of\nevery line.\n" );
+    is-deeply $recipe.notes».value.List, ($note,), "0005: note with '>' on the first line only";
+    is $recipe.steps.elems, 0, '0005: the lines after a note are not steps';
+    $recipe = Cooklang.new( recipe => "> In markdown\n>\n> Two paragraphs\n" );
+    is-deeply $recipe.notes».value.List, ('In markdown Two paragraphs',), "0005: an empty '>' line does not end the note";
+
+    $recipe = Cooklang.new( recipe => q:to/END/ );
+        == Dough ==
+
+        Mix @flour{200%g} and @water{50%ml} together until smooth.
+
+        == Filling ==
+
+        Combine @cheese{100%g} and @spinach{50%g} and season to taste.
+
+        == Assembly ==
+        Roll out dough and spread filling on top.
+        END
+    is-deeply $recipe.sections(data-type => 'human').map({ .<name> => .<steps>.map(*.join).List }).List,
+        ( Dough    => ('Mix 200 g flour and 50 ml water together until smooth.',),
+          Filling  => ('Combine 100 g cheese and 50 g spinach and season to taste.',),
+          Assembly => ('Roll out dough and spread filling on top.',) ),
+        '0006: three sections, the last without a blank line after the header';
+
+    $recipe = Cooklang.new( servings => 8, recipe => q:to/END/ );
+        ---
+        servings: 4
+        ---
+
+        Mix @flour{500%g} with @water{300%ml}.
+        Add @yeast{=1%packet} and let rise for ~{1%hour}.
+        END
+    is-deeply items($recipe.ingredients), (('flour', 1000, 'g'), ('water', 600, 'ml'), ('yeast', 1, 'packet')),
+        'conventions: scaled from 4 to 8 servings, fixed yeast';
+    is-deeply timers($recipe), (('', 1, 'hour'),), 'conventions: timer not scaled';
+}
+
 done-testing;

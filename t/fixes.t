@@ -176,6 +176,15 @@ subtest "Front matter that YAML does not accept, but is simple 'key: value' line
     is-deeply Cooklang.new( recipe => "---\n---\nStep.\n" ).metadata, %(), 'Front matter: empty block';
 }
 
+subtest "Front matter only closes on a line with nothing but '---'" => {
+    my $src = "---\ntitle: X\n---Step.\n";
+    my $recipe = Cooklang.new( recipe => $src );
+    is-deeply $recipe.metadata, %(), "Front matter: '---Step.' does not close the block";
+    is $recipe.cook, $src, "Front matter: '---Step.' cook round-trip";
+    is-deeply Cooklang.new( recipe => "---\ntitle: X\n---  \nStep.\n" ).metadata, %( title => 'X' ), 'Front matter: trailing spaces after the close';
+    is-deeply Cooklang.new( recipe => "---\ntitle: X\n---" ).metadata, %( title => 'X' ), 'Front matter: close at end of file';
+}
+
 subtest 'Scaling (spec proposal 0010): fixed quantities, cookware and timers are not scaled' => {
     my $src = "Add \@milk\{1/2%cup} and \@salt\{=1%tsp} to #pan\{2}, wait ~\{10%min}.\n";
     my $recipe = Cooklang.new( recipe => $src, factor => 2 );

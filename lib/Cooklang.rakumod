@@ -34,7 +34,7 @@ grammar Recipe {
     token metadata_group  { ^ <metadata_open> ~ <metadata_close> <metadata_body> <?{ front-matter(~$<metadata_body>).defined }> }
     token metadata_body   { [ <!before <metadata_close>> \V* \v ]* }
     token metadata_open   { '---' \h* \v }
-    token metadata_close  { '---' \h* }
+    token metadata_close  { '---' \h* <?before \v | $> }
     token meta_key        { <-[:\v]>+ }  # Up to ':' on the same line
     token meta_value      { \V+ }        # Rest of the line
 
